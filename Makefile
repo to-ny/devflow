@@ -1,4 +1,4 @@
-.PHONY: dev build check clean
+.PHONY: dev build check fmt lint
 
 dev:
 	npm run tauri dev
@@ -10,5 +10,10 @@ check:
 	npm run build
 	cd src-tauri && cargo check
 
-clean:
-	rm -rf dist src-tauri/target
+fmt:
+	npx prettier --write src/
+	cd src-tauri && cargo fmt
+
+lint:
+	npx eslint src/
+	cd src-tauri && cargo clippy
