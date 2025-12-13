@@ -1,4 +1,4 @@
-.PHONY: dev build check fmt lint
+.PHONY: dev build check fmt lint test
 
 dev:
 	npm run tauri dev
@@ -17,3 +17,6 @@ fmt:
 lint:
 	npx eslint src/
 	cd src-tauri && cargo clippy
+
+test:
+	cd src-tauri && cargo test

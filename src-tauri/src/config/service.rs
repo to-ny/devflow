@@ -17,8 +17,7 @@ pub struct ConfigService {
 
 impl ConfigService {
     pub fn new() -> Result<Self, ConfigError> {
-        let project_dirs = ProjectDirs::from("", "", "devflow")
-            .ok_or(ConfigError::NoAppDataDir)?;
+        let project_dirs = ProjectDirs::from("", "", "devflow").ok_or(ConfigError::NoAppDataDir)?;
 
         let app_data_dir = project_dirs.data_dir().to_path_buf();
 
@@ -35,11 +34,15 @@ impl ConfigService {
     }
 
     fn project_config_path(project_path: &Path) -> PathBuf {
-        project_path.join(PROJECT_CONFIG_DIR).join(PROJECT_CONFIG_FILENAME)
+        project_path
+            .join(PROJECT_CONFIG_DIR)
+            .join(PROJECT_CONFIG_FILENAME)
     }
 
     fn permissions_path(project_path: &Path) -> PathBuf {
-        project_path.join(PROJECT_CONFIG_DIR).join(PERMISSIONS_FILENAME)
+        project_path
+            .join(PROJECT_CONFIG_DIR)
+            .join(PERMISSIONS_FILENAME)
     }
 
     // App Config Methods
@@ -180,7 +183,10 @@ mod tests {
         service.save_app_config(&config).unwrap();
         let loaded = service.load_app_config().unwrap();
 
-        assert_eq!(loaded.state.last_project, Some("/path/to/project".to_string()));
+        assert_eq!(
+            loaded.state.last_project,
+            Some("/path/to/project".to_string())
+        );
     }
 
     #[test]
