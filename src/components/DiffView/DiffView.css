@@ -1,0 +1,254 @@
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-primary);
+}
+
+/* Global comment */
+.global-comment-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.global-comment-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.global-comment-input {
+  width: 100%;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.global-comment-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.global-comment-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.diff-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.diff-view-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-full-path {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-status-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.file-status-badge.added {
+  background: rgba(78, 201, 176, 0.2);
+  color: var(--color-status-added);
+}
+
+.file-status-badge.modified {
+  background: rgba(220, 220, 170, 0.2);
+  color: var(--color-status-modified);
+}
+
+.file-status-badge.deleted {
+  background: rgba(241, 76, 76, 0.2);
+  color: var(--color-status-deleted);
+}
+
+.file-status-badge.untracked {
+  background: rgba(106, 153, 85, 0.2);
+  color: var(--color-status-untracked);
+}
+
+.diff-view-content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.diff-view-empty,
+.diff-view-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.diff-view-error {
+  color: var(--color-status-deleted);
+}
+
+.diff-hunk {
+  margin-bottom: 16px;
+}
+
+.hunk-header {
+  padding: 8px 16px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-family: monospace;
+  font-size: 12px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.diff-lines {
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.diff-line {
+  display: flex;
+  min-height: 20px;
+}
+
+.diff-line.context {
+  background: var(--color-bg-primary);
+}
+
+.diff-line.addition {
+  background: var(--color-diff-addition-bg);
+}
+
+.diff-line.deletion {
+  background: var(--color-diff-deletion-bg);
+}
+
+.line-number {
+  width: 50px;
+  min-width: 50px;
+  padding: 0 8px;
+  text-align: right;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  user-select: none;
+  border-right: 1px solid var(--color-border);
+}
+
+.line-number.old {
+  border-right: none;
+}
+
+.diff-line.addition .line-number.old,
+.diff-line.deletion .line-number.new {
+  color: transparent;
+}
+
+.line-marker {
+  width: 20px;
+  min-width: 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.diff-line.addition .line-marker {
+  color: var(--color-status-added);
+}
+
+.diff-line.deletion .line-marker {
+  color: var(--color-status-deleted);
+}
+
+.line-content {
+  flex: 1;
+  padding: 0 16px 0 8px;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--color-text-primary);
+}
+
+.diff-line.addition .line-content {
+  color: var(--color-diff-addition-text);
+}
+
+.diff-line.deletion .line-content {
+  color: var(--color-diff-deletion-text);
+}
+
+/* Line selection */
+.diff-line {
+  cursor: pointer;
+  position: relative;
+}
+
+.diff-line:hover {
+  filter: brightness(1.1);
+}
+
+.diff-line.selected {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Comment indicators */
+.diff-line.has-comment {
+  border-left: 3px solid var(--color-accent);
+}
+
+.diff-line.has-comment .line-number.old {
+  border-left: none;
+}
+
+.comment-indicator {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent);
+  border-radius: 50%;
+}

@@ -2,40 +2,45 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary, #1e1e1e);
+  background: var(--color-bg-secondary);
 }
 
 .file-tree-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color, #333);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .file-tree-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-primary, #fff);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .refresh-btn {
   background: transparent;
   border: none;
-  color: var(--text-secondary, #888);
-  font-size: 16px;
+  color: var(--color-text-muted);
+  font-size: 14px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 0 4px;
+  margin: -4px 0;
   border-radius: 4px;
+  line-height: 1;
   transition:
     background-color 0.15s,
     color 0.15s;
 }
 
 .refresh-btn:hover {
-  background: var(--bg-hover, #333);
-  color: var(--text-primary, #fff);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
 
 .file-tree-content {
@@ -44,9 +49,9 @@
 }
 
 .empty-message {
-  padding: 16px;
-  color: var(--text-secondary, #888);
-  font-size: 13px;
+  padding: var(--spacing-lg);
+  color: var(--color-text-secondary);
+  font-size: 12px;
   text-align: center;
 }
 
@@ -59,58 +64,58 @@
 .file-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 4px 12px;
   cursor: pointer;
   border-left: 3px solid transparent;
   transition: background-color 0.15s;
 }
 
 .file-item:hover {
-  background: var(--bg-hover, #2a2a2a);
+  background: var(--color-bg-tertiary);
 }
 
 .file-item.selected {
-  background: var(--bg-selected, #37373d);
-  border-left-color: var(--accent-color, #007acc);
+  background: var(--color-bg-tertiary);
+  border-left-color: var(--color-accent);
 }
 
 .file-status {
   font-family: monospace;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
-  width: 16px;
+  width: 14px;
   text-align: center;
   flex-shrink: 0;
 }
 
 .status-added {
-  color: var(--status-added, #4ec9b0);
+  color: var(--color-status-added);
 }
 
 .status-modified {
-  color: var(--status-modified, #dcdcaa);
+  color: var(--color-status-modified);
 }
 
 .status-deleted {
-  color: var(--status-deleted, #f14c4c);
+  color: var(--color-status-deleted);
 }
 
 .status-renamed {
-  color: var(--status-renamed, #569cd6);
+  color: var(--color-status-renamed);
 }
 
 .status-copied {
-  color: var(--status-copied, #569cd6);
+  color: var(--color-status-copied);
 }
 
 .status-untracked {
-  color: var(--status-untracked, #6a9955);
+  color: var(--color-status-untracked);
 }
 
 .file-name {
-  color: var(--text-primary, #fff);
-  font-size: 13px;
+  color: var(--color-text-primary);
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -118,4 +123,20 @@
 
 .file-path {
   display: none;
+}
+
+.comment-badge {
+  margin-left: auto;
+  background: var(--color-accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  flex-shrink: 0;
 }

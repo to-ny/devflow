@@ -1,9 +1,48 @@
 use std::path::Path;
+use std::sync::OnceLock;
 
 use log::info;
 
+use super::highlighter::Highlighter;
 use super::service::GitService;
-use super::types::{ChangedFile, FileDiff, FileStatus};
+use super::types::{ChangedFile, FileDiff, FileStatus, LineKind};
+
+static HIGHLIGHTER: OnceLock<Highlighter> = OnceLock::new();
+
+fn get_highlighter() -> &'static Highlighter {
+    HIGHLIGHTER.get_or_init(Highlighter::new)
+}
+
+fn apply_syntax_highlighting(mut diff: FileDiff) -> FileDiff {
+    let highlighter = get_highlighter();
+
+    // Build full content for context-aware highlighting
+    let full_content: String = diff
+        .hunks
+        .iter()
+        .flat_map(|h| h.lines.iter())
+        .filter(|l| l.kind != LineKind::Deletion)
+        .map(|l| l.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let highlighted_lines = highlighter.highlight_lines(&full_content, &diff.path);
+    let mut highlight_iter = highlighted_lines.into_iter();
+
+    for hunk in &mut diff.hunks {
+        for line in &mut hunk.lines {
+            if line.kind != LineKind::Deletion {
+                line.highlighted = highlight_iter.next();
+            } else {
+                // For deletions, highlight individually
+                let single = highlighter.highlight_lines(&line.content, &diff.path);
+                line.highlighted = single.into_iter().next();
+            }
+        }
+    }
+
+    diff
+}
 
 #[derive(serde::Serialize)]
 pub struct RepoCheckResult {
@@ -54,15 +93,10 @@ pub fn git_get_file_diff_with_status(
         file_path, index_status, worktree_status
     );
     let service = GitService::open(Path::new(&project_path)).map_err(|e| e.to_string())?;
-    service
+    let diff = service
         .get_file_diff_with_status(&file_path, index_status, worktree_status)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn git_get_all_diffs(project_path: String) -> Result<Vec<FileDiff>, String> {
-    let service = GitService::open(Path::new(&project_path)).map_err(|e| e.to_string())?;
-    service.get_all_diffs().map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(apply_syntax_highlighting(diff))
 }
 
 #[tauri::command]

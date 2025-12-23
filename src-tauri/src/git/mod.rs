@@ -1,6 +1,7 @@
 pub mod commands;
 mod diff_parser;
 mod error;
+mod highlighter;
 mod service;
 mod types;
 mod wsl;

@@ -34,26 +34,6 @@ pub struct ChangedFile {
     pub worktree_status: Option<FileStatus>,
 }
 
-impl ChangedFile {
-    /// Returns the primary status for display purposes
-    /// Prefers worktree status over index status
-    pub fn display_status(&self) -> FileStatus {
-        self.worktree_status
-            .or(self.index_status)
-            .unwrap_or(FileStatus::Modified)
-    }
-
-    /// Returns true if the file has staged changes
-    pub fn is_staged(&self) -> bool {
-        self.index_status.is_some()
-    }
-
-    /// Returns true if the file has unstaged changes
-    pub fn is_unstaged(&self) -> bool {
-        self.worktree_status.is_some()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct FileDiff {
@@ -79,6 +59,8 @@ pub struct DiffLine {
     pub old_line_no: Option<u32>,
     pub new_line_no: Option<u32>,
     pub content: String,
+    /// Syntax-highlighted HTML content (if available)
+    pub highlighted: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

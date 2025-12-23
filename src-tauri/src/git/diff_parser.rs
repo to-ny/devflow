@@ -82,6 +82,7 @@ pub fn parse_unified_diff(diff_output: &str) -> Vec<DiffHunk> {
                     old_line_no: old_no,
                     new_line_no: new_no,
                     content: content.to_string(),
+                    highlighted: None,
                 });
             }
         }

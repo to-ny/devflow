@@ -59,6 +59,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Track if component is mounted to avoid state updates after unmount
   const isMounted = useRef(true);
+  // Use ref for projectPath so refreshFiles can be properly memoized
+  const projectPathRef = useRef<string | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    projectPathRef.current = state.projectPath;
+  }, [state.projectPath]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -91,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       updateWindowTitle(projectName);
       invoke("config_set_last_project", { projectPath }).catch(() => {});
+      invoke("watcher_start", { projectPath }).catch(() => {});
     },
     [updateWindowTitle],
   );
@@ -136,6 +144,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setProjectOpen]);
 
   const closeProject = useCallback(() => {
+    invoke("watcher_stop", {}).catch(() => {});
+
     setState({
       projectPath: null,
       projectName: null,
@@ -165,15 +175,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, [state.selectedFile, state.changedFiles]);
 
-  // Not memoized intentionally - needs current state.projectPath
-  const refreshFiles = async () => {
-    if (!state.projectPath) {
+  const refreshFiles = useCallback(async () => {
+    const projectPath = projectPathRef.current;
+    if (!projectPath) {
       return;
     }
 
     try {
       const files = await invoke<ChangedFile[]>("git_get_changed_files", {
-        projectPath: state.projectPath,
+        projectPath,
       });
 
       if (isMounted.current && files) {
@@ -191,7 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignored
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (state.isProjectOpen && state.projectPath) {
@@ -250,12 +260,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const unlistenClose = await listen("menu-close-project", () => {
           closeProject();
         });
+        const unlistenFilesChanged = await listen("files-changed", () => {
+          refreshFiles();
+        });
 
         if (cancelled) {
           unlistenOpen();
           unlistenClose();
+          unlistenFilesChanged();
         } else {
-          unlisteners.push(unlistenOpen, unlistenClose);
+          unlisteners.push(unlistenOpen, unlistenClose, unlistenFilesChanged);
         }
       } catch {
         // Ignored
@@ -268,7 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unlisteners.forEach((fn) => fn());
     };
-  }, [openProject, closeProject]);
+  }, [openProject, closeProject, refreshFiles]);
 
   return (
     <AppContext.Provider

@@ -1,4 +1,5 @@
 import { useApp } from "../context/AppContext";
+import { useComments } from "../context/CommentsContext";
 import type { FileStatus } from "../types/git";
 import { getDisplayStatus } from "../types/git";
 import "./FileTree.css";
@@ -27,6 +28,7 @@ function getFileName(path: string): string {
 
 export function FileTree() {
   const { changedFiles, selectedFile, selectFile, refreshFiles } = useApp();
+  const { getCommentCountForFile } = useComments();
 
   return (
     <div className="file-tree">
@@ -47,6 +49,7 @@ export function FileTree() {
           <ul className="file-list">
             {changedFiles.map((file) => {
               const status = getDisplayStatus(file);
+              const commentCount = getCommentCountForFile(file.path);
               return (
                 <li
                   key={file.path}
@@ -59,6 +62,14 @@ export function FileTree() {
                   </span>
                   <span className="file-name">{getFileName(file.path)}</span>
                   <span className="file-path">{file.path}</span>
+                  {commentCount > 0 && (
+                    <span
+                      className="comment-badge"
+                      title={`${commentCount} comment${commentCount > 1 ? "s" : ""}`}
+                    >
+                      {commentCount}
+                    </span>
+                  )}
                 </li>
               );
             })}

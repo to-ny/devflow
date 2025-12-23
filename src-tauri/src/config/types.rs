@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-/// App-level configuration stored in app_data_dir/app.toml
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -12,8 +12,8 @@ pub struct AppState {
     pub last_project: Option<String>,
 }
 
-/// Project-level configuration stored in <project>/.devflow/config.toml
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ProjectConfig {
     pub agent: AgentConfig,
     #[serde(default)]
@@ -24,14 +24,16 @@ pub struct ProjectConfig {
     pub notifications: NotificationsConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct AgentConfig {
     pub provider: String,
     pub model: String,
     pub api_key_env: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct PromptsConfig {
     #[serde(default)]
     pub pre: String,
@@ -39,7 +41,8 @@ pub struct PromptsConfig {
     pub post: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ExecutionConfig {
     #[serde(default = "default_execution_mode")]
     pub mode: ExecutionMode,
@@ -67,7 +70,8 @@ fn default_timeout_secs() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 #[serde(rename_all = "lowercase")]
 pub enum ExecutionMode {
     #[default]
@@ -75,7 +79,8 @@ pub enum ExecutionMode {
     Container,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ExecutionPatterns {
     #[serde(default)]
     pub allow: Vec<String>,
@@ -83,7 +88,8 @@ pub struct ExecutionPatterns {
     pub deny: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct NotificationsConfig {
     #[serde(default)]
     pub on_complete: Vec<NotificationAction>,
@@ -93,15 +99,16 @@ pub struct NotificationsConfig {
     pub on_permission_request: Vec<NotificationAction>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 #[serde(rename_all = "lowercase")]
 pub enum NotificationAction {
     Sound,
     Window,
 }
 
-/// Saved permissions stored in <project>/.devflow/permissions.toml
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct SavedPermissions {
     #[serde(default)]
     pub allowed: PermissionEntries,
@@ -109,7 +116,8 @@ pub struct SavedPermissions {
     pub denied: PermissionEntries,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
 pub struct PermissionEntries {
     #[serde(default)]
     pub commands: Vec<String>,

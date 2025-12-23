@@ -1,4 +1,5 @@
 import { AppProvider, useApp } from "./context/AppContext";
+import { CommentsProvider } from "./context/CommentsContext";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { MainLayout } from "./components/MainLayout";
 import "./App.css";
@@ -12,7 +13,9 @@ function AppContent() {
 function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <CommentsProvider>
+        <AppContent />
+      </CommentsProvider>
     </AppProvider>
   );
 }

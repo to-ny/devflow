@@ -6,4 +6,8 @@ export type DiffLine = {
   old_line_no: number | null;
   new_line_no: number | null;
   content: string;
+  /**
+   * Syntax-highlighted HTML content (if available)
+   */
+  highlighted: string | null;
 };

@@ -23,6 +23,20 @@
   --color-error: #ef4444;
   --color-error-bg: rgba(239, 68, 68, 0.1);
 
+  /* Git status colors */
+  --color-status-added: #4ec9b0;
+  --color-status-modified: #dcdcaa;
+  --color-status-deleted: #f14c4c;
+  --color-status-renamed: #569cd6;
+  --color-status-copied: #569cd6;
+  --color-status-untracked: #6a9955;
+
+  /* Diff colors */
+  --color-diff-addition-bg: rgba(78, 201, 176, 0.15);
+  --color-diff-addition-text: #b5cea8;
+  --color-diff-deletion-bg: rgba(241, 76, 76, 0.15);
+  --color-diff-deletion-text: #ce9178;
+
   /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -63,6 +77,30 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-tertiary);
+  border-radius: 5px;
+  border: 2px solid var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--color-bg-primary);
 }
 
 html,

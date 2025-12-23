@@ -164,34 +164,6 @@ impl GitService {
         })
     }
 
-    /// Fetches status internally. Prefer get_file_diff_with_status() if you have status.
-    pub fn get_file_diff(&self, file_path: &str) -> Result<FileDiff, GitError> {
-        info!("get_file_diff: file={}", file_path);
-        let changed_files = self.get_changed_files()?;
-        let file_info = changed_files
-            .into_iter()
-            .find(|f| f.path == file_path)
-            .ok_or_else(|| GitError::FileNotFound(file_path.to_string()))?;
-
-        self.get_file_diff_with_status(file_path, file_info.index_status, file_info.worktree_status)
-    }
-
-    pub fn get_all_diffs(&self) -> Result<Vec<FileDiff>, GitError> {
-        let changed_files = self.get_changed_files()?;
-        let mut file_diffs = Vec::new();
-
-        for file in changed_files {
-            let diff = self.get_file_diff_with_status(
-                &file.path,
-                file.index_status,
-                file.worktree_status,
-            )?;
-            file_diffs.push(diff);
-        }
-
-        Ok(file_diffs)
-    }
-
     fn diff_untracked_file(&self, file_path: &str) -> Result<Vec<DiffHunk>, GitError> {
         let full_path = self.workdir.join(file_path);
         if !full_path.is_file() {
@@ -207,6 +179,7 @@ impl GitService {
                 old_line_no: None,
                 new_line_no: Some((i + 1) as u32),
                 content: line.to_string(),
+                highlighted: None,
             })
             .collect();
 
