@@ -1,3 +1,4 @@
+pub mod commands;
 mod error;
 mod service;
 mod types;

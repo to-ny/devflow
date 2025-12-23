@@ -1,10 +1,19 @@
-.PHONY: dev build check fmt lint test
+.PHONY: dev build build-dev build-windows build-windows-dev check fmt lint test
 
 dev:
 	npm run tauri dev
 
 build:
 	npm run tauri build
+
+build-dev:
+	npm run tauri build -- --features devtools
+
+build-windows:
+	npm run tauri build -- --target x86_64-pc-windows-msvc
+
+build-windows-dev:
+	npm run tauri build -- --target x86_64-pc-windows-msvc --features devtools
 
 check:
 	npm run build
@@ -16,7 +25,8 @@ fmt:
 
 lint:
 	npx eslint src/
-	cd src-tauri && cargo clippy
+	cd src-tauri && cargo clippy -- -D warnings
 
 test:
+	npm run test
 	cd src-tauri && cargo test
