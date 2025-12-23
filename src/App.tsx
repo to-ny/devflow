@@ -1,21 +1,30 @@
 import { AppProvider, useApp } from "./context/AppContext";
+import { ChatProvider } from "./context/ChatContext";
 import { CommentsProvider } from "./context/CommentsContext";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { MainLayout } from "./components/MainLayout";
 import "./App.css";
 
 function AppContent() {
-  const { isProjectOpen } = useApp();
+  const { isProjectOpen, projectPath } = useApp();
 
-  return isProjectOpen ? <MainLayout /> : <WelcomeScreen />;
+  if (!isProjectOpen) {
+    return <WelcomeScreen />;
+  }
+
+  return (
+    <ChatProvider projectPath={projectPath}>
+      <CommentsProvider>
+        <MainLayout />
+      </CommentsProvider>
+    </ChatProvider>
+  );
 }
 
 function App() {
   return (
     <AppProvider>
-      <CommentsProvider>
-        <AppContent />
-      </CommentsProvider>
+      <AppContent />
     </AppProvider>
   );
 }

@@ -4,5 +4,4 @@ import type { NotificationAction } from "./NotificationAction";
 export type NotificationsConfig = {
   on_complete: Array<NotificationAction>;
   on_error: Array<NotificationAction>;
-  on_permission_request: Array<NotificationAction>;
 };

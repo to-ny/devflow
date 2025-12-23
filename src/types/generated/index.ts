@@ -10,14 +10,17 @@ export type { FileStatus } from "./FileStatus";
 export type { LineKind } from "./LineKind";
 export type { RepositoryCheckResult } from "./RepositoryCheckResult";
 
+// Agent types
+export type { AgentChunkPayload } from "./AgentChunkPayload";
+export type { AgentCompletePayload } from "./AgentCompletePayload";
+export type { AgentErrorPayload } from "./AgentErrorPayload";
+export type { ChatMessage } from "./ChatMessage";
+export type { MessageRole } from "./MessageRole";
+
 // Config types
 export type { AgentConfig } from "./AgentConfig";
 export type { ExecutionConfig } from "./ExecutionConfig";
-export type { ExecutionMode } from "./ExecutionMode";
-export type { ExecutionPatterns } from "./ExecutionPatterns";
 export type { NotificationAction } from "./NotificationAction";
 export type { NotificationsConfig } from "./NotificationsConfig";
-export type { PermissionEntries } from "./PermissionEntries";
 export type { ProjectConfig } from "./ProjectConfig";
 export type { PromptsConfig } from "./PromptsConfig";
-export type { SavedPermissions } from "./SavedPermissions";

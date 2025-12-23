@@ -98,9 +98,9 @@ Schema: `[state]` with `last_project` (string path)
 Location: `<project>/.devflow/config.toml`
 
 Schema:
-- `[agent]`: provider (string), model (string), api_key_env (string, env var name)
+- `[agent]`: provider (string), model (string), api_key_env (string, env var name), max_tokens (int)
 - `[prompts]`: pre (string), post (string)
-- `[execution]`: mode ("local" | "container"), timeout_secs (int)
+- `[execution]`: timeout_secs (int)
 - `[notifications]`: on_complete, on_error (arrays, values: "sound", "window")
 
 ## Templates

@@ -30,6 +30,7 @@ pub struct AgentConfig {
     pub provider: String,
     pub model: String,
     pub api_key_env: String,
+    pub max_tokens: u32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
@@ -44,48 +45,20 @@ pub struct PromptsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ExecutionConfig {
-    #[serde(default = "default_execution_mode")]
-    pub mode: ExecutionMode,
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
-    #[serde(default)]
-    pub patterns: ExecutionPatterns,
 }
 
 impl Default for ExecutionConfig {
     fn default() -> Self {
         Self {
-            mode: ExecutionMode::Local,
             timeout_secs: default_timeout_secs(),
-            patterns: ExecutionPatterns::default(),
         }
     }
 }
 
-fn default_execution_mode() -> ExecutionMode {
-    ExecutionMode::Local
-}
-
 fn default_timeout_secs() -> u64 {
     120
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
-#[serde(rename_all = "lowercase")]
-pub enum ExecutionMode {
-    #[default]
-    Local,
-    Container,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
-pub struct ExecutionPatterns {
-    #[serde(default)]
-    pub allow: Vec<String>,
-    #[serde(default)]
-    pub deny: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
@@ -95,8 +68,6 @@ pub struct NotificationsConfig {
     pub on_complete: Vec<NotificationAction>,
     #[serde(default)]
     pub on_error: Vec<NotificationAction>,
-    #[serde(default)]
-    pub on_permission_request: Vec<NotificationAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -105,22 +76,4 @@ pub struct NotificationsConfig {
 pub enum NotificationAction {
     Sound,
     Window,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
-pub struct SavedPermissions {
-    #[serde(default)]
-    pub allowed: PermissionEntries,
-    #[serde(default)]
-    pub denied: PermissionEntries,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
-pub struct PermissionEntries {
-    #[serde(default)]
-    pub commands: Vec<String>,
-    #[serde(default)]
-    pub patterns: Vec<String>,
 }

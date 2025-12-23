@@ -1,0 +1,16 @@
+[agent]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+max_tokens = 8192
+
+[prompts]
+pre = ""
+post = ""
+
+[execution]
+timeout_secs = 120
+
+[notifications]
+on_complete = ["window"]
+on_error = ["window", "sound"]

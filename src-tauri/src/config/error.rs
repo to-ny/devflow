@@ -35,7 +35,4 @@ pub enum ConfigError {
 
     #[error("Could not determine app data directory")]
     NoAppDataDir,
-
-    #[error("Invalid execution mode: {0}. Expected 'local' or 'container'")]
-    InvalidExecutionMode(String),
 }

@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod config;
 pub mod git;
 mod menu;
@@ -8,9 +9,11 @@ use std::sync::Mutex;
 #[cfg(feature = "devtools")]
 use tauri::Manager;
 
+use agent::commands::{agent_clear_state, agent_send_message};
+use agent::AgentState;
 use config::commands::{
-    config_get_last_project, config_load_permissions, config_load_project, config_project_exists,
-    config_save_permissions, config_save_project, config_set_last_project,
+    config_get_last_project, config_load_project, config_project_exists, config_save_project,
+    config_set_last_project,
 };
 use git::commands::{
     git_get_changed_files, git_get_file_diff_with_status, git_is_repository, git_stage_all,
@@ -32,6 +35,7 @@ pub fn run() {
                 .build(),
         )
         .manage(WatcherState(Mutex::new(None)))
+        .manage(Mutex::new(AgentState::new()))
         .setup(|app| {
             menu::setup(app)?;
             #[cfg(feature = "devtools")]
@@ -44,6 +48,8 @@ pub fn run() {
             menu::handle_event(app, event.id().as_ref());
         })
         .invoke_handler(tauri::generate_handler![
+            agent_send_message,
+            agent_clear_state,
             git_is_repository,
             git_get_changed_files,
             git_get_file_diff_with_status,
@@ -53,8 +59,6 @@ pub fn run() {
             config_project_exists,
             config_load_project,
             config_save_project,
-            config_load_permissions,
-            config_save_permissions,
             watcher_start,
             watcher_stop,
         ])

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::service::ConfigService;
-use super::types::{ProjectConfig, SavedPermissions};
+use super::types::ProjectConfig;
 
 #[tauri::command]
 pub fn config_get_last_project() -> Result<Option<String>, String> {
@@ -31,18 +31,4 @@ pub fn config_load_project(project_path: String) -> Result<ProjectConfig, String
 #[tauri::command]
 pub fn config_save_project(project_path: String, config: ProjectConfig) -> Result<(), String> {
     ConfigService::save_project_config(Path::new(&project_path), &config).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn config_load_permissions(project_path: String) -> Result<SavedPermissions, String> {
-    ConfigService::load_permissions(Path::new(&project_path)).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn config_save_permissions(
-    project_path: String,
-    permissions: SavedPermissions,
-) -> Result<(), String> {
-    ConfigService::save_permissions(Path::new(&project_path), &permissions)
-        .map_err(|e| e.to_string())
 }
