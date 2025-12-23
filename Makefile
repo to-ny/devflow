@@ -1,4 +1,4 @@
-.PHONY: dev build build-dev build-windows build-windows-dev check fmt lint test
+.PHONY: dev build build-dev build-windows build-windows-dev check fmt lint test generate-types
 
 dev:
 	npm run tauri dev
@@ -30,3 +30,6 @@ lint:
 test:
 	npm run test
 	cd src-tauri && cargo test
+
+generate-types:
+	cd src-tauri && TS_RS_EXPORT_DIR="$(shell pwd)/src/types/generated" cargo test export_bindings

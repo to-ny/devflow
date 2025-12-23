@@ -9,8 +9,8 @@ pub enum GitError {
     #[error("File not found in diff: {0}")]
     FileNotFound(String),
 
-    #[error("Git operation failed: {0}")]
-    GixError(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("Git command failed: {0}")]
+    CommandFailed(String),
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),

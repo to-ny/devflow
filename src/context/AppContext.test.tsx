@@ -160,4 +160,35 @@ describe("AppProvider", () => {
     await userEvent.click(screen.getByRole("button"));
     expect(screen.getByTestId("error")).toHaveTextContent("none");
   });
+
+  it("selectFile updates the selected file", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+
+    function TestComponent() {
+      const { selectedFile, selectFile } = useApp();
+      return (
+        <div>
+          <span data-testid="selected">{selectedFile || "none"}</span>
+          <button onClick={() => selectFile("test.ts")}>Select</button>
+          <button onClick={() => selectFile(null)}>Clear</button>
+        </div>
+      );
+    }
+
+    render(
+      <AppProvider>
+        <TestComponent />
+      </AppProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected")).toHaveTextContent("none");
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Select" }));
+    expect(screen.getByTestId("selected")).toHaveTextContent("test.ts");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByTestId("selected")).toHaveTextContent("none");
+  });
 });

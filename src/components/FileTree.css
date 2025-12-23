@@ -1,0 +1,121 @@
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-secondary, #1e1e1e);
+}
+
+.file-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.file-tree-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.refresh-btn:hover {
+  background: var(--bg-hover, #333);
+  color: var(--text-primary, #fff);
+}
+
+.file-tree-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty-message {
+  padding: 16px;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+  text-align: center;
+}
+
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s;
+}
+
+.file-item:hover {
+  background: var(--bg-hover, #2a2a2a);
+}
+
+.file-item.selected {
+  background: var(--bg-selected, #37373d);
+  border-left-color: var(--accent-color, #007acc);
+}
+
+.file-status {
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: bold;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.status-added {
+  color: var(--status-added, #4ec9b0);
+}
+
+.status-modified {
+  color: var(--status-modified, #dcdcaa);
+}
+
+.status-deleted {
+  color: var(--status-deleted, #f14c4c);
+}
+
+.status-renamed {
+  color: var(--status-renamed, #569cd6);
+}
+
+.status-copied {
+  color: var(--status-copied, #569cd6);
+}
+
+.status-untracked {
+  color: var(--status-untracked, #6a9955);
+}
+
+.file-name {
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-path {
+  display: none;
+}

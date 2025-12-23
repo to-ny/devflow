@@ -7,7 +7,8 @@ use tauri::Manager;
 
 use config::commands::{config_get_last_project, config_set_last_project};
 use git::commands::{
-    git_get_all_diffs, git_get_changed_files, git_get_file_diff, git_is_repository, git_stage_all,
+    git_get_all_diffs, git_get_changed_files, git_get_file_diff_with_status, git_is_repository,
+    git_stage_all,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,9 +16,17 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // TODO: Make log level configurable via app settings
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Webview,
+                ))
+                .build(),
+        )
         .setup(|app| {
             menu::setup(app)?;
-            // Open devtools when built with --features devtools
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
@@ -30,7 +39,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             git_is_repository,
             git_get_changed_files,
-            git_get_file_diff,
+            git_get_file_diff_with_status,
             git_get_all_diffs,
             git_stage_all,
             config_get_last_project,

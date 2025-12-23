@@ -148,12 +148,12 @@ Excluded: Multi-project, other providers, ContainerExecutor, session persistence
 
 ## Implementation Notes
 
-Key crates: `tauri`, `tokio`, `reqwest`, `git2`, `syntect`, `handlebars`, `serde`, `toml`, `toml_edit`, `notify`, `glob`
+Key crates: `tauri`, `tokio`, `reqwest`, `syntect`, `handlebars`, `serde`, `toml`, `toml_edit`, `notify`, `glob`
 
 Implementation order:
 1. Tauri + React + Vite scaffolding
 2. Config loading
-3. Git service (diff via git2)
+3. Git service (diff via Git CLI)
 4. UI shell with layout
 5. DiffView + FileTree
 6. AgentOrchestrator + AnthropicAdapter
@@ -166,7 +166,8 @@ Implementation order:
 
 Gotchas:
 - Anthropic API uses server-sent events for streaming
-- git2: use `diff_index_to_workdir(None, ...)` for unstaged changes
+- Git CLI: use `git status --porcelain -uall` for changed files, `git diff -- <file>` for diffs
+- WSL paths: route git commands through `wsl.exe -d <distro> git -C <path>` for proper .gitignore handling
 - Permission pattern format: `tool_type:pattern` (e.g., `bash:npm install *`)
 - Agent loop must await permission modal response
 - Debounce file watcher events

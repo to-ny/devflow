@@ -11,6 +11,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
+import type { ChangedFile, FileStatus } from "../types/git";
 
 interface AppState {
   projectPath: string | null;
@@ -18,6 +19,8 @@ interface AppState {
   isProjectOpen: boolean;
   isLoading: boolean;
   error: string | null;
+  changedFiles: ChangedFile[];
+  selectedFile: string | null;
 }
 
 interface RepoCheckResult {
@@ -32,6 +35,9 @@ interface AppContextValue extends AppState {
   openProject: () => Promise<void>;
   closeProject: () => void;
   clearError: () => void;
+  selectFile: (path: string | null) => void;
+  refreshFiles: () => Promise<void>;
+  getSelectedFileInfo: () => ChangedFile | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -47,6 +53,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isProjectOpen: false,
     isLoading: true,
     error: null,
+    changedFiles: [],
+    selectedFile: null,
   });
 
   // Track if component is mounted to avoid state updates after unmount
@@ -63,8 +71,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const title = projectName ? `Devflow - ${projectName}` : "Devflow";
     try {
       await getCurrentWindow().setTitle(title);
-    } catch (err) {
-      console.error("Failed to update window title:", err);
+    } catch {
+      // Ignored
     }
   }, []);
 
@@ -77,13 +85,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isProjectOpen: true,
         isLoading: false,
         error: null,
+        changedFiles: [],
+        selectedFile: null,
       });
 
-      // Update window title asynchronously
       updateWindowTitle(projectName);
-
-      // Persist last project
-      invoke("config_set_last_project", { projectPath }).catch(console.error);
+      invoke("config_set_last_project", { projectPath }).catch(() => {});
     },
     [updateWindowTitle],
   );
@@ -99,7 +106,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
 
       if (selected && typeof selected === "string") {
-        // Validate it's a git repository
         const result = await invoke<RepoCheckResult>("git_is_repository", {
           path: selected,
         });
@@ -119,13 +125,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         setProjectOpen(selected);
       }
-    } catch (err) {
-      console.error("Failed to open project:", err);
+    } catch {
       if (isMounted.current) {
-        const errorMessage = "Failed to open project";
         setState((prev) => ({
           ...prev,
-          error: errorMessage,
+          error: "Failed to open project",
         }));
       }
     }
@@ -138,22 +142,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isProjectOpen: false,
       isLoading: false,
       error: null,
+      changedFiles: [],
+      selectedFile: null,
     });
 
-    // Update window title asynchronously
     updateWindowTitle(null);
-
-    // Clear last project
-    invoke("config_set_last_project", { projectPath: null }).catch(
-      console.error,
-    );
+    invoke("config_set_last_project", { projectPath: null }).catch(() => {});
   }, [updateWindowTitle]);
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
   }, []);
 
-  // Load last project on startup
+  const selectFile = useCallback((path: string | null) => {
+    setState((prev) => ({ ...prev, selectedFile: path }));
+  }, []);
+
+  const getSelectedFileInfo = useCallback((): ChangedFile | null => {
+    if (!state.selectedFile) return null;
+    return (
+      state.changedFiles.find((f) => f.path === state.selectedFile) ?? null
+    );
+  }, [state.selectedFile, state.changedFiles]);
+
+  // Not memoized intentionally - needs current state.projectPath
+  const refreshFiles = async () => {
+    if (!state.projectPath) {
+      return;
+    }
+
+    try {
+      const files = await invoke<ChangedFile[]>("git_get_changed_files", {
+        projectPath: state.projectPath,
+      });
+
+      if (isMounted.current && files) {
+        setState((prev) => {
+          const selectedStillExists = files.some(
+            (f) => f.path === prev.selectedFile,
+          );
+          return {
+            ...prev,
+            changedFiles: files,
+            selectedFile: selectedStillExists ? prev.selectedFile : null,
+          };
+        });
+      }
+    } catch {
+      // Ignored
+    }
+  };
+
+  useEffect(() => {
+    if (state.isProjectOpen && state.projectPath) {
+      refreshFiles();
+    }
+  }, [state.isProjectOpen, state.projectPath]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -166,7 +211,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         if (lastProject) {
-          // Verify it's still a valid git repository
           const result = await invoke<RepoCheckResult>("git_is_repository", {
             path: lastProject,
           });
@@ -178,8 +222,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return;
           }
         }
-      } catch (err) {
-        console.error("Failed to load last project:", err);
+      } catch {
+        // Ignored
       }
 
       if (!cancelled) {
@@ -194,7 +238,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [setProjectOpen]);
 
-  // Listen for menu events
   useEffect(() => {
     let cancelled = false;
     const unlisteners: (() => void)[] = [];
@@ -214,8 +257,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           unlisteners.push(unlistenOpen, unlistenClose);
         }
-      } catch (err) {
-        console.error("Failed to setup menu listeners:", err);
+      } catch {
+        // Ignored
       }
     }
 
@@ -234,6 +277,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         openProject,
         closeProject,
         clearError,
+        selectFile,
+        refreshFiles,
+        getSelectedFileInfo,
       }}
     >
       {children}
@@ -247,4 +293,14 @@ export function useApp() {
     throw new Error("useApp must be used within an AppProvider");
   }
   return context;
+}
+
+export function getFileStatusForDiff(file: ChangedFile): {
+  indexStatus: FileStatus | null;
+  worktreeStatus: FileStatus | null;
+} {
+  return {
+    indexStatus: file.index_status,
+    worktreeStatus: file.worktree_status,
+  };
 }
