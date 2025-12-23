@@ -171,7 +171,10 @@ mod tests {
                 pre: "You are a helpful assistant.".to_string(),
                 post: "Be concise.".to_string(),
             },
-            execution: ExecutionConfig { timeout_secs: 60 },
+            execution: ExecutionConfig {
+                timeout_secs: 60,
+                max_tool_iterations: 50,
+            },
             notifications: NotificationsConfig {
                 on_complete: vec![NotificationAction::Window],
                 on_error: vec![NotificationAction::Sound, NotificationAction::Window],
@@ -199,6 +202,10 @@ provider = "anthropic"
 model = "claude-sonnet-4-20250514"
 api_key_env = "ANTHROPIC_API_KEY"
 max_tokens = 4096
+
+[execution]
+timeout_secs = 120
+max_tool_iterations = 50
 "#;
 
         fs::write(config_dir.join("config.toml"), minimal_config).unwrap();
@@ -207,6 +214,7 @@ max_tokens = 4096
 
         assert_eq!(loaded.agent.provider, "anthropic");
         assert_eq!(loaded.execution.timeout_secs, 120);
+        assert_eq!(loaded.execution.max_tool_iterations, 50);
         assert!(loaded.prompts.pre.is_empty());
     }
 

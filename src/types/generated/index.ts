@@ -16,6 +16,8 @@ export type { AgentCompletePayload } from "./AgentCompletePayload";
 export type { AgentErrorPayload } from "./AgentErrorPayload";
 export type { ChatMessage } from "./ChatMessage";
 export type { MessageRole } from "./MessageRole";
+export type { ToolStartPayload } from "./ToolStartPayload";
+export type { ToolEndPayload } from "./ToolEndPayload";
 
 // Config types
 export type { AgentConfig } from "./AgentConfig";

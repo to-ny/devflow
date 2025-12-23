@@ -148,18 +148,20 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         "agent-complete",
         (event) => {
           if (cancelled || !isMounted.current) return;
-          const assistantMessage: ChatMessage = {
-            id: event.payload.message_id,
-            role: "assistant",
-            content: event.payload.full_content,
-          };
-          setState((prev) => ({
-            ...prev,
-            messages: [...prev.messages, assistantMessage],
-            isLoading: false,
-            streamContent: "",
-            streamMessageId: null,
-          }));
+          setState((prev) => {
+            const assistantMessage: ChatMessage = {
+              id: event.payload.message_id,
+              role: "assistant",
+              content: prev.streamContent,
+            };
+            return {
+              ...prev,
+              messages: [...prev.messages, assistantMessage],
+              isLoading: false,
+              streamContent: "",
+              streamMessageId: null,
+            };
+          });
         },
       );
 

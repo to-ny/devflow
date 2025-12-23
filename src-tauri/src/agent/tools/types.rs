@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Will be used in Step 8 (AgentOrchestrator)
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,6 +11,7 @@ pub enum ToolName {
 }
 
 impl ToolName {
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             ToolName::Bash => "bash",

@@ -13,7 +13,7 @@ pub async fn agent_send_message(
     project_path: String,
     messages: Vec<ChatMessage>,
     system_prompt: Option<String>,
-) -> Result<String, String> {
+) -> Result<(), String> {
     let needs_init = {
         let state = state.lock().map_err(|e| e.to_string())?;
         state.project_path.as_ref() != Some(&project_path) || state.adapter.is_none()

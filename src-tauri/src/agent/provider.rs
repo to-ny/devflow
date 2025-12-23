@@ -11,7 +11,7 @@ pub trait ProviderAdapter: Send + Sync {
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
         app_handle: AppHandle,
-    ) -> Result<String, AgentError>;
+    ) -> Result<(), AgentError>;
 
     fn model(&self) -> &str;
 }

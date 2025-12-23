@@ -10,6 +10,7 @@ post = ""
 
 [execution]
 timeout_secs = 120
+max_tool_iterations = 50
 
 [notifications]
 on_complete = ["window"]

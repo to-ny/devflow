@@ -813,6 +813,7 @@ dependencies = [
  "log",
  "notify",
  "notify-debouncer-mini",
+ "once_cell",
  "reqwest",
  "serde",
  "serde_json",

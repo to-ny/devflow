@@ -18,7 +18,6 @@ pub struct ProjectConfig {
     pub agent: AgentConfig,
     #[serde(default)]
     pub prompts: PromptsConfig,
-    #[serde(default)]
     pub execution: ExecutionConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
@@ -45,20 +44,8 @@ pub struct PromptsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ExecutionConfig {
-    #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
-}
-
-impl Default for ExecutionConfig {
-    fn default() -> Self {
-        Self {
-            timeout_secs: default_timeout_secs(),
-        }
-    }
-}
-
-fn default_timeout_secs() -> u64 {
-    120
+    pub max_tool_iterations: u32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]

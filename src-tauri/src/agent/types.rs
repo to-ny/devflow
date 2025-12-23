@@ -2,6 +2,14 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+/// Tool definition for Anthropic API requests
+#[derive(Debug, Serialize, Clone)]
+pub struct ToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct ChatMessage {
@@ -38,7 +46,6 @@ pub struct AgentChunkPayload {
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct AgentCompletePayload {
     pub message_id: String,
-    pub full_content: String,
     pub stop_reason: Option<String>,
 }
 
@@ -46,4 +53,21 @@ pub struct AgentCompletePayload {
 #[ts(export, export_to = "../../../src/types/generated/")]
 pub struct AgentErrorPayload {
     pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
+pub struct ToolStartPayload {
+    pub tool_use_id: String,
+    pub tool_name: String,
+    /// JSON string of the tool input
+    pub tool_input: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "../../../src/types/generated/")]
+pub struct ToolEndPayload {
+    pub tool_use_id: String,
+    pub output: String,
+    pub is_error: bool,
 }

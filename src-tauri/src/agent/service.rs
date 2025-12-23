@@ -1,23 +1,27 @@
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use log::{debug, error, info};
 use reqwest::Client;
-use serde_json;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
-use crate::config::{AgentConfig, ConfigService, PromptsConfig};
+use crate::config::{AgentConfig, ConfigService, ExecutionConfig, PromptsConfig};
 
 use super::anthropic::{
-    AnthropicErrorResponse, AnthropicEvent, AnthropicMessage, AnthropicRequest, ContentDelta,
+    AnthropicErrorResponse, AnthropicEvent, AnthropicMessage, AnthropicRequest, ContentBlock,
+    ContentDelta, MessageContent, StreamedResponse,
 };
 use super::error::AgentError;
 use super::provider::ProviderAdapter;
-use super::types::{AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, ChatMessage};
+use super::tools::{get_tool_definitions, LocalExecutor, ToolExecutor, ToolName};
+use super::types::{
+    AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, ChatMessage, ToolEndPayload,
+    ToolStartPayload,
+};
 
 const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -26,16 +30,26 @@ pub struct AnthropicAdapter {
     client: Client,
     config: AgentConfig,
     prompts: PromptsConfig,
+    execution: ExecutionConfig,
     api_key: String,
+    project_path: PathBuf,
 }
 
 impl AnthropicAdapter {
-    fn new(config: AgentConfig, prompts: PromptsConfig, api_key: String) -> Self {
+    fn new(
+        config: AgentConfig,
+        prompts: PromptsConfig,
+        execution: ExecutionConfig,
+        api_key: String,
+        project_path: PathBuf,
+    ) -> Self {
         Self {
             client: Client::new(),
             config,
             prompts,
+            execution,
             api_key,
+            project_path,
         }
     }
 
@@ -61,80 +75,31 @@ impl AnthropicAdapter {
         }
     }
 
-    fn process_sse_event(&self, event_data: &str, app_handle: &AppHandle) -> Option<SseResult> {
-        let mut event_type = None;
-        let mut data = None;
-
-        for line in event_data.lines() {
-            if let Some(suffix) = line.strip_prefix("event: ") {
-                event_type = Some(suffix.to_string());
-            } else if let Some(suffix) = line.strip_prefix("data: ") {
-                data = Some(suffix.to_string());
-            }
-        }
-
-        let data = data?;
-
-        if data == "[DONE]" {
-            return Some(SseResult::Done);
-        }
-
-        let event: AnthropicEvent = match serde_json::from_str(&data) {
-            Ok(e) => e,
-            Err(e) => {
-                debug!("Failed to parse SSE event: {} - data: {}", e, data);
-                return None;
-            }
-        };
-
-        match event {
-            AnthropicEvent::ContentBlockDelta { delta, .. } => {
-                let ContentDelta::TextDelta { text } = delta;
-                let _ = app_handle.emit(
-                    "agent-chunk",
-                    AgentChunkPayload {
-                        delta: text.clone(),
-                    },
-                );
-                Some(SseResult::Delta(text))
-            }
-            AnthropicEvent::MessageDelta { delta, .. } => {
-                delta.stop_reason.map(SseResult::StopReason)
-            }
-            AnthropicEvent::Error { error } => Some(SseResult::Error(error.message)),
-            AnthropicEvent::MessageStop => Some(SseResult::Done),
-            _ => {
-                debug!("Ignoring SSE event type: {:?}", event_type);
-                None
-            }
-        }
+    fn create_executor(&self) -> LocalExecutor {
+        LocalExecutor::new(self.project_path.clone(), self.execution.timeout_secs)
     }
-}
 
-#[async_trait]
-impl ProviderAdapter for AnthropicAdapter {
-    async fn send_message(
+    async fn stream_response(
         &self,
-        messages: Vec<ChatMessage>,
-        system_prompt: Option<String>,
-        app_handle: AppHandle,
-    ) -> Result<String, AgentError> {
-        let anthropic_messages: Vec<AnthropicMessage> =
-            messages.iter().map(AnthropicMessage::from).collect();
-
-        let system = self.build_system_prompt(system_prompt);
+        messages: &[AnthropicMessage],
+        system: Option<String>,
+        app_handle: &AppHandle,
+    ) -> Result<StreamedResponse, AgentError> {
+        let tools = get_tool_definitions();
 
         let request = AnthropicRequest {
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens,
-            messages: anthropic_messages,
+            messages: messages.to_vec(),
             stream: true,
             system,
+            tools: Some(tools),
         };
 
         info!(
-            "Sending message to Anthropic API (model: {})",
-            self.config.model
+            "Sending message to Anthropic API (model: {}, {} messages)",
+            self.config.model,
+            messages.len()
         );
 
         let response = self
@@ -158,9 +123,7 @@ impl ProviderAdapter for AnthropicAdapter {
             return Err(AgentError::ApiError(format!("{}: {}", status, body)));
         }
 
-        let message_id = Uuid::new_v4().to_string();
-        let mut full_content = String::new();
-        let mut stop_reason: Option<String> = None;
+        let mut streamed = StreamedResponse::new();
         let mut stream = response.bytes_stream();
         let mut buffer = String::new();
 
@@ -172,49 +135,220 @@ impl ProviderAdapter for AnthropicAdapter {
                 let event_data = buffer[..event_end].to_string();
                 buffer = buffer[event_end + 2..].to_string();
 
-                if let Some(result) = self.process_sse_event(&event_data, &app_handle) {
-                    match result {
-                        SseResult::Delta(delta) => {
-                            full_content.push_str(&delta);
-                        }
-                        SseResult::StopReason(reason) => {
-                            stop_reason = Some(reason);
-                        }
-                        SseResult::Error(err) => {
-                            let _ = app_handle
-                                .emit("agent-error", AgentErrorPayload { error: err.clone() });
-                            return Err(AgentError::ApiError(err));
-                        }
-                        SseResult::Done => break,
-                    }
-                }
+                self.process_sse_event(&event_data, app_handle, &mut streamed);
             }
         }
 
-        info!("Anthropic response complete ({} chars)", full_content.len());
+        Ok(streamed)
+    }
 
-        let _ = app_handle.emit(
-            "agent-complete",
-            AgentCompletePayload {
-                message_id,
-                full_content: full_content.clone(),
-                stop_reason,
-            },
-        );
+    fn process_sse_event(
+        &self,
+        event_data: &str,
+        app_handle: &AppHandle,
+        streamed: &mut StreamedResponse,
+    ) {
+        let mut data = None;
 
-        Ok(full_content)
+        for line in event_data.lines() {
+            if let Some(suffix) = line.strip_prefix("data: ") {
+                data = Some(suffix.to_string());
+            }
+        }
+
+        let Some(data) = data else { return };
+
+        if data == "[DONE]" {
+            return;
+        }
+
+        let event: AnthropicEvent = match serde_json::from_str(&data) {
+            Ok(e) => e,
+            Err(e) => {
+                debug!("Failed to parse SSE event: {} - data: {}", e, data);
+                return;
+            }
+        };
+
+        match event {
+            AnthropicEvent::ContentBlockStart {
+                index,
+                content_block,
+            } => {
+                streamed.on_content_block_start(index, content_block);
+            }
+            AnthropicEvent::ContentBlockDelta { index, delta } => {
+                if let ContentDelta::TextDelta { ref text } = delta {
+                    let _ = app_handle.emit(
+                        "agent-chunk",
+                        AgentChunkPayload {
+                            delta: text.clone(),
+                        },
+                    );
+                }
+                streamed.on_content_delta(index, delta);
+            }
+            AnthropicEvent::ContentBlockStop { index } => {
+                streamed.on_content_block_stop(index);
+            }
+            AnthropicEvent::MessageDelta { delta, .. } => {
+                streamed.on_message_delta(delta);
+            }
+            AnthropicEvent::Error { error } => {
+                let _ = app_handle.emit(
+                    "agent-error",
+                    AgentErrorPayload {
+                        error: error.message,
+                    },
+                );
+            }
+            _ => {}
+        }
+    }
+
+    async fn execute_tool_loop(
+        &self,
+        initial_messages: Vec<AnthropicMessage>,
+        system_prompt: Option<String>,
+        app_handle: &AppHandle,
+    ) -> Result<Option<String>, AgentError> {
+        let executor = self.create_executor();
+        let mut conversation = initial_messages;
+        let max_iterations = self.execution.max_tool_iterations;
+        let mut iteration = 0u32;
+
+        loop {
+            let response = self
+                .stream_response(&conversation, system_prompt.clone(), app_handle)
+                .await?;
+
+            if !response.has_tool_use() {
+                info!(
+                    "Agent response complete (stop_reason: {:?})",
+                    response.stop_reason
+                );
+                return Ok(response.stop_reason);
+            }
+
+            iteration += 1;
+            if iteration >= max_iterations {
+                return Err(AgentError::ToolExecutionError(format!(
+                    "Exceeded maximum tool iterations ({})",
+                    max_iterations
+                )));
+            }
+
+            conversation.push(AnthropicMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Blocks(response.content_blocks.clone()),
+            });
+
+            let mut tool_results = Vec::new();
+
+            for block in &response.content_blocks {
+                if let ContentBlock::ToolUse { id, name, input } = block {
+                    info!("Executing tool: {} (id: {})", name, id);
+
+                    let _ = app_handle.emit(
+                        "agent-tool-start",
+                        ToolStartPayload {
+                            tool_use_id: id.clone(),
+                            tool_name: name.clone(),
+                            tool_input: serde_json::to_string(input).unwrap_or_default(),
+                        },
+                    );
+
+                    let tool_name = ToolName::from_str(name)
+                        .ok_or_else(|| AgentError::UnknownTool(name.clone()))?;
+
+                    let (output, is_error) = match executor.execute(tool_name, input.clone()).await
+                    {
+                        Ok(result) => (result, false),
+                        Err(e) => (e.to_string(), true),
+                    };
+
+                    info!(
+                        "Tool {} completed (error: {}, output: {} chars)",
+                        name,
+                        is_error,
+                        output.len()
+                    );
+
+                    let _ = app_handle.emit(
+                        "agent-tool-end",
+                        ToolEndPayload {
+                            tool_use_id: id.clone(),
+                            output: output.clone(),
+                            is_error,
+                        },
+                    );
+
+                    tool_results.push(ContentBlock::ToolResult {
+                        tool_use_id: id.clone(),
+                        content: output,
+                        is_error: if is_error { Some(true) } else { None },
+                    });
+                }
+            }
+
+            conversation.push(AnthropicMessage {
+                role: "user".to_string(),
+                content: MessageContent::Blocks(tool_results),
+            });
+
+            info!(
+                "Continuing conversation with tool results (iteration {}/{})",
+                iteration, max_iterations
+            );
+        }
+    }
+}
+
+#[async_trait]
+impl ProviderAdapter for AnthropicAdapter {
+    async fn send_message(
+        &self,
+        messages: Vec<ChatMessage>,
+        system_prompt: Option<String>,
+        app_handle: AppHandle,
+    ) -> Result<(), AgentError> {
+        let anthropic_messages: Vec<AnthropicMessage> =
+            messages.iter().map(AnthropicMessage::from).collect();
+
+        let system = self.build_system_prompt(system_prompt);
+
+        let message_id = Uuid::new_v4().to_string();
+
+        let result = self
+            .execute_tool_loop(anthropic_messages, system, &app_handle)
+            .await;
+
+        match result {
+            Ok(stop_reason) => {
+                let _ = app_handle.emit(
+                    "agent-complete",
+                    AgentCompletePayload {
+                        message_id,
+                        stop_reason,
+                    },
+                );
+                Ok(())
+            }
+            Err(e) => {
+                let _ = app_handle.emit(
+                    "agent-error",
+                    AgentErrorPayload {
+                        error: e.to_string(),
+                    },
+                );
+                Err(e)
+            }
+        }
     }
 
     fn model(&self) -> &str {
         &self.config.model
     }
-}
-
-enum SseResult {
-    Delta(String),
-    StopReason(String),
-    Error(String),
-    Done,
 }
 
 pub fn create_provider_adapter(
@@ -233,7 +367,9 @@ pub fn create_provider_adapter(
             Ok(Arc::new(AnthropicAdapter::new(
                 project_config.agent,
                 project_config.prompts,
+                project_config.execution,
                 api_key,
+                project_path.to_path_buf(),
             )))
         }
         _ => Err(AgentError::UnsupportedProvider(provider)),
