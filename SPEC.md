@@ -18,11 +18,11 @@ Desktop application for AI-assisted iterative code development with integrated d
 
 ```
 Frontend (React + Vite + TypeScript):
-  WelcomeScreen, ChatPanel, DiffView, FileTree, CommentEditor, PermissionModal, CommitModal
+  WelcomeScreen, ChatPanel, DiffView, FileTree, CommentEditor, CommitModal
 
 Backend (Tauri + Rust):
   AgentOrchestrator, ProviderAdapter (trait) → AnthropicAdapter, ToolExecutor (trait) → LocalExecutor,
-  PermissionService, GitService, ConfigService, TemplateService
+  GitService, ConfigService, TemplateService
 
 Communication: Tauri commands (invoke) and events (emit)
 ```
@@ -72,31 +72,13 @@ Three-column layout (all resizable):
 - Stored in memory until "Send Comments" clicked
 - Template variables: `{{comments}}` (array with file, lines, selected_code, text), `{{global_comment}}`
 
-### Permission System
-
-All tool executions go through permission checks.
-
-Evaluation order:
-1. Check config `deny` patterns → block if matched
-2. Check config `allow` patterns → execute if matched
-3. Check saved decisions (permissions.toml) → follow if found
-4. Prompt user via PermissionModal
-
-PermissionModal:
-- Shows tool type, command/path, content preview (for file ops)
-- "Remember this decision" checkbox with options: exact command or pattern
-- Allow/Deny buttons
-- Window notification when modal appears and window unfocused
-
-Denial message to agent: `Permission denied: User did not allow execution of '<command>'.`
-
 ### Commit Flow
 
 CommitModal: text input for instructions → executes `git add --all` → renders commit template → sends to agent
 
 ### Notifications
 
-Events: agent complete, agent error, permission request
+Events: agent complete, agent error
 Actions: window flash/highlight, optional sound (configurable per event)
 
 ### Input Behavior
@@ -119,18 +101,7 @@ Schema:
 - `[agent]`: provider (string), model (string), api_key_env (string, env var name)
 - `[prompts]`: pre (string), post (string)
 - `[execution]`: mode ("local" | "container"), timeout_secs (int)
-- `[execution.patterns]`: allow (array of strings), deny (array of strings)
-- `[notifications]`: on_complete, on_error, on_permission_request (arrays, values: "sound", "window")
-
-Pattern format: `tool_type:glob` (e.g., `bash:npm install *`, `write_file:src/**`)
-
-### Saved Permissions
-
-Location: `<project>/.devflow/permissions.toml` (auto-generated, user-editable)
-
-Schema:
-- `[allowed]`: commands (array), patterns (array)
-- `[denied]`: commands (array), patterns (array)
+- `[notifications]`: on_complete, on_error (arrays, values: "sound", "window")
 
 ## Templates
 
@@ -144,7 +115,7 @@ Variables available:
 
 Included: Single project, Anthropic only, LocalExecutor, unified diff with syntax highlighting, comments, pre/post prompts, in-memory prompt history, notifications, commit flow
 
-Excluded: Multi-project, other providers, ContainerExecutor, session persistence, prompt history persistence
+Excluded: Multi-project, other providers, ContainerExecutor, session persistence, prompt history persistence, permission system
 
 ## Implementation Notes
 
@@ -156,20 +127,17 @@ Implementation order:
 3. Git service (diff via Git CLI)
 4. UI shell with layout
 5. DiffView + FileTree
-6. AgentOrchestrator + AnthropicAdapter
-7. ChatPanel with streaming
-8. PermissionService + PermissionModal
-9. ToolExecutor (LocalExecutor)
-10. Comments + template rendering
-11. Notifications
-12. Commit flow
+6. AnthropicAdapter + ChatPanel streaming
+7. ToolExecutor (LocalExecutor)
+8. AgentOrchestrator (tool loop)
+9. Template rendering
+10. Notifications
+11. Commit flow
 
 Gotchas:
 - Anthropic API uses server-sent events for streaming
 - Git CLI: use `git status --porcelain -uall` for changed files, `git diff -- <file>` for diffs
 - WSL paths: route git commands through `wsl.exe -d <distro> git -C <path>` for proper .gitignore handling
-- Permission pattern format: `tool_type:pattern` (e.g., `bash:npm install *`)
-- Agent loop must await permission modal response
 - Debounce file watcher events
 
 Tool definitions for Anthropic API:
