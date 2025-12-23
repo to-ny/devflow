@@ -16,4 +16,19 @@ pub enum AgentError {
 
     #[error("Unsupported provider: '{0}'. Supported providers: anthropic")]
     UnsupportedProvider(String),
+
+    #[error("Tool execution error: {0}")]
+    ToolExecutionError(String),
+
+    #[error("Tool execution timed out")]
+    ToolTimeout,
+
+    #[error("Invalid tool input: {0}")]
+    InvalidToolInput(String),
+
+    #[error("Unknown tool: {0}")]
+    UnknownTool(String),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }
