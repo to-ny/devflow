@@ -1,0 +1,9 @@
+.changes-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.changes-panel-group {
+  height: 100%;
+}

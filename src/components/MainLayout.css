@@ -1,29 +1,12 @@
 .main-layout {
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: var(--color-bg-primary);
 }
 
-.panel-group {
-  height: 100%;
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  background-color: var(--color-bg-secondary);
+.page-content {
+  flex: 1;
   overflow: hidden;
-}
-
-.resize-handle {
-  width: 4px;
-  background-color: var(--color-border);
-  transition: background-color var(--transition-normal);
-}
-
-.resize-handle:hover {
-  background-color: var(--color-accent);
-}
-
-.resize-handle[data-resize-handle-active] {
-  background-color: var(--color-accent);
+  padding-bottom: var(--bottom-nav-height);
 }

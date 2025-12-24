@@ -53,6 +53,9 @@
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.2s ease;
+
+  /* Layout */
+  --bottom-nav-height: 60px;
 }
 
 /* Light theme support (for future use) */

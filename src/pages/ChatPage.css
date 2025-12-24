@@ -1,0 +1,6 @@
+.chat-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-secondary);
+}

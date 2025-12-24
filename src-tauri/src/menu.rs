@@ -23,26 +23,28 @@ pub fn setup(app: &App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_menu(app: &App) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
-    let open_project = MenuItem::with_id(
-        app,
-        "open_project",
-        "Open Project",
-        true,
-        Some("CmdOrCtrl+O"),
-    )?;
-    let close_project = MenuItem::with_id(
-        app,
-        "close_project",
-        "Close Project",
-        true,
-        Some("CmdOrCtrl+W"),
-    )?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
+    // File menu
+    let open_project = MenuItem::with_id(app, "open_project", "Open Project", true, None::<&str>)?;
+    let close_project =
+        MenuItem::with_id(app, "close_project", "Close Project", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let file_menu =
         Submenu::with_items(app, "File", true, &[&open_project, &close_project, &quit])?;
 
-    let menu = Menu::with_items(app, &[&file_menu])?;
+    // View menu
+    let view_chat = MenuItem::with_id(app, "view_chat", "Chat", true, None::<&str>)?;
+    let view_changes = MenuItem::with_id(app, "view_changes", "Changes", true, None::<&str>)?;
+    let view_settings = MenuItem::with_id(app, "view_settings", "Settings", true, None::<&str>)?;
+
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[&view_chat, &view_changes, &view_settings],
+    )?;
+
+    let menu = Menu::with_items(app, &[&file_menu, &view_menu])?;
 
     Ok(menu)
 }
@@ -59,6 +61,21 @@ pub fn handle_event(app: &AppHandle, event_id: &str) {
         "close_project" => {
             if let Some(win) = window {
                 let _ = win.emit("menu-close-project", ());
+            }
+        }
+        "view_chat" => {
+            if let Some(win) = window {
+                let _ = win.emit("menu-navigate", "chat");
+            }
+        }
+        "view_changes" => {
+            if let Some(win) = window {
+                let _ = win.emit("menu-navigate", "changes");
+            }
+        }
+        "view_settings" => {
+            if let Some(win) = window {
+                let _ = win.emit("menu-navigate", "settings");
             }
         }
         "quit" => {
