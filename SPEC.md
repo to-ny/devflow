@@ -22,8 +22,8 @@ Frontend (React + Vite + TypeScript):
   ChatPanel, DiffView, FileTree, CommentEditor, CommitModal
 
 Backend (Tauri + Rust):
-  AgentOrchestrator, ProviderAdapter (trait) → AnthropicAdapter, ToolExecutor (trait) → LocalExecutor,
-  GitService, ConfigService, TemplateService
+  AgentOrchestrator, ProviderAdapter (trait) → AnthropicAdapter | GeminiAdapter,
+  ToolExecutor (trait) → LocalExecutor, GitService, ConfigService, TemplateService
 
 Communication: Tauri commands (invoke) and events (emit)
 ```
@@ -111,10 +111,12 @@ Schema: `[state]` with `last_project` (string path)
 Location: `<project>/.devflow/config.toml`
 
 Schema:
-- `[agent]`: provider (string), model (string), api_key_env (string, env var name), max_tokens (int)
+- `[agent]`: provider ("anthropic" | "gemini"), model (string), api_key_env (string, env var name), max_tokens (int)
 - `[prompts]`: pre (string), post (string)
 - `[execution]`: timeout_secs (int), max_tool_iterations (int)
 - `[notifications]`: on_complete, on_error (arrays, values: "sound", "window")
+
+All agent fields are required (no defaults).
 
 ## Templates
 
@@ -126,9 +128,9 @@ Variables available:
 
 ## MVP Scope
 
-Included: Single project, Anthropic only, LocalExecutor, unified diff with syntax highlighting, comments, pre/post prompts, prompt history (localStorage), notifications, commit flow
+Included: Single project, Anthropic and Gemini providers, LocalExecutor, unified diff with syntax highlighting, comments, pre/post prompts, prompt history (localStorage), notifications, commit flow
 
-Excluded: Multi-project, other providers, ContainerExecutor, session persistence, permission system
+Excluded: Multi-project, ContainerExecutor, session persistence, permission system
 
 ## Implementation Notes
 
@@ -151,8 +153,9 @@ Implementation order:
 
 Gotchas:
 - Anthropic API uses server-sent events for streaming
+- Gemini API uses server-sent events with `alt=sse` parameter
 - Git CLI: use `git status --porcelain -uall` for changed files, `git diff -- <file>` for diffs
-- WSL paths: route git commands through `wsl.exe -d <distro> git -C <path>` for proper .gitignore handling
+- WSL paths: route git and shell commands through `wsl.exe -d <distro>` for proper execution
 - Debounce file watcher events
 
 Tool definitions for Anthropic API:

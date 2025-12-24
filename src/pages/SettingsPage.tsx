@@ -283,6 +283,7 @@ export function SettingsPage() {
                 onChange={handleChange}
               >
                 <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
               </select>
             </div>
             <div

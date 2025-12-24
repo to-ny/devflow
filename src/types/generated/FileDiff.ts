@@ -2,8 +2,4 @@
 import type { DiffHunk } from "./DiffHunk";
 import type { FileStatus } from "./FileStatus";
 
-export type FileDiff = {
-  path: string;
-  status: FileStatus;
-  hunks: Array<DiffHunk>;
-};
+export type FileDiff = { path: string, status: FileStatus, hunks: Array<DiffHunk>, };

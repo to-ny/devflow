@@ -1,10 +1,14 @@
-use std::sync::RwLock;
+use std::sync::{PoisonError, RwLock};
 
 use log::{error, info};
 use tauri::{AppHandle, Emitter, State};
 
-use super::service::AgentState;
+use super::state::AgentState;
 use super::types::{AgentStatus, AgentStatusPayload, ChatMessage};
+
+fn lock_error<T>(_: PoisonError<T>) -> String {
+    "Lock poisoned".to_string()
+}
 
 #[tauri::command]
 pub async fn agent_send_message(
@@ -18,7 +22,7 @@ pub async fn agent_send_message(
     let (adapter, cancel_token) = {
         // First, check with read lock
         let needs_work = {
-            let state_guard = state.read().map_err(|e| e.to_string())?;
+            let state_guard = state.read().map_err(lock_error)?;
             if state_guard.is_running {
                 return Err("Agent is already processing a request".to_string());
             }
@@ -27,7 +31,7 @@ pub async fn agent_send_message(
         };
 
         // If we need to modify state, get write lock
-        let mut state_guard = state.write().map_err(|e| e.to_string())?;
+        let mut state_guard = state.write().map_err(lock_error)?;
 
         // Re-check is_running under write lock to prevent race
         if state_guard.is_running {
@@ -54,7 +58,7 @@ pub async fn agent_send_message(
 
     // Mark run as finished
     {
-        let mut state_guard = state.write().map_err(|e| e.to_string())?;
+        let mut state_guard = state.write().map_err(lock_error)?;
         state_guard.finish_run();
     }
 
@@ -69,7 +73,7 @@ pub fn agent_cancel(
     app_handle: AppHandle,
     state: State<'_, RwLock<AgentState>>,
 ) -> Result<(), String> {
-    let mut state_guard = state.write().map_err(|e| e.to_string())?;
+    let mut state_guard = state.write().map_err(lock_error)?;
 
     if !state_guard.is_running {
         return Ok(()); // Nothing to cancel
@@ -89,13 +93,13 @@ pub fn agent_cancel(
 
 #[tauri::command]
 pub fn agent_is_running(state: State<'_, RwLock<AgentState>>) -> Result<bool, String> {
-    let state_guard = state.read().map_err(|e| e.to_string())?;
+    let state_guard = state.read().map_err(lock_error)?;
     Ok(state_guard.is_running)
 }
 
 #[tauri::command]
 pub fn agent_clear_state(state: State<'_, RwLock<AgentState>>) -> Result<(), String> {
-    let mut state_guard = state.write().map_err(|e| e.to_string())?;
+    let mut state_guard = state.write().map_err(lock_error)?;
     state_guard.clear();
     Ok(())
 }

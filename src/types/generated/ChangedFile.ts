@@ -4,14 +4,12 @@ import type { FileStatus } from "./FileStatus";
 /**
  * A file with changes, tracking both staged (index) and unstaged (worktree) status
  */
-export type ChangedFile = {
-  path: string;
-  /**
-   * Status of staged changes (in the index)
-   */
-  index_status: FileStatus | null;
-  /**
-   * Status of unstaged changes (in the working tree)
-   */
-  worktree_status: FileStatus | null;
-};
+export type ChangedFile = { path: string, 
+/**
+ * Status of staged changes (in the index)
+ */
+index_status: FileStatus | null, 
+/**
+ * Status of unstaged changes (in the working tree)
+ */
+worktree_status: FileStatus | null, };

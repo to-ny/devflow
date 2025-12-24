@@ -3,10 +3,4 @@
 /**
  * Tool execution record for message history
  */
-export type ToolExecution = {
-  tool_use_id: string;
-  tool_name: string;
-  tool_input: unknown;
-  output: string | null;
-  is_error: boolean | null;
-};
+export type ToolExecution = { tool_use_id: string, tool_name: string, tool_input: unknown, output: string | null, is_error: boolean | null, };

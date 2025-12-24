@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::types::{ChatMessage, MessageRole, ToolDefinition};
+use crate::agent::types::{ChatMessage, MessageRole, ToolDefinition};
 
 // === Request Types ===
 
@@ -220,7 +220,6 @@ mod tests {
     fn test_streamed_response_text_accumulation() {
         let mut response = StreamedResponse::new();
 
-        // Start a text block
         response.on_content_block_start(
             0,
             ContentBlock::Text {
@@ -228,7 +227,6 @@ mod tests {
             },
         );
 
-        // Add text deltas
         response.on_content_delta(
             0,
             ContentDelta::TextDelta {
@@ -242,7 +240,6 @@ mod tests {
             },
         );
 
-        // Stop the block
         response.on_content_block_stop(0);
 
         assert!(!response.has_tool_use());
@@ -259,7 +256,6 @@ mod tests {
     fn test_streamed_response_tool_use_accumulation() {
         let mut response = StreamedResponse::new();
 
-        // Start a tool_use block
         response.on_content_block_start(
             0,
             ContentBlock::ToolUse {
@@ -269,7 +265,6 @@ mod tests {
             },
         );
 
-        // Add JSON deltas
         response.on_content_delta(
             0,
             ContentDelta::InputJsonDelta {
@@ -283,7 +278,6 @@ mod tests {
             },
         );
 
-        // Stop the block - this should parse the JSON
         response.on_content_block_stop(0);
 
         assert!(response.has_tool_use());
@@ -302,7 +296,6 @@ mod tests {
     fn test_streamed_response_mixed_content() {
         let mut response = StreamedResponse::new();
 
-        // Text block
         response.on_content_block_start(
             0,
             ContentBlock::Text {
@@ -317,7 +310,6 @@ mod tests {
         );
         response.on_content_block_stop(0);
 
-        // Tool use block
         response.on_content_block_start(
             1,
             ContentBlock::ToolUse {

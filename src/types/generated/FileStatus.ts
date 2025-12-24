@@ -3,10 +3,4 @@
 /**
  * Status of a file in git (staged or unstaged)
  */
-export type FileStatus =
-  | "added"
-  | "modified"
-  | "deleted"
-  | "renamed"
-  | "copied"
-  | "untracked";
+export type FileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked";

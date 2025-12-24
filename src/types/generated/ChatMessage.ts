@@ -2,9 +2,4 @@
 import type { MessageRole } from "./MessageRole";
 import type { ToolExecution } from "./ToolExecution";
 
-export type ChatMessage = {
-  id: string;
-  role: MessageRole;
-  content: string;
-  tool_executions?: Array<ToolExecution>;
-};
+export type ChatMessage = { id: string, role: MessageRole, content: string, tool_executions?: Array<ToolExecution>, };

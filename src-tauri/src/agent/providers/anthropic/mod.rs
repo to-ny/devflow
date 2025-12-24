@@ -1,6 +1,7 @@
+mod types;
+
 use std::env;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -10,26 +11,26 @@ use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use crate::config::{AgentConfig, ConfigService, ExecutionConfig, PromptsConfig};
+use crate::agent::error::AgentError;
+use crate::agent::provider::ProviderAdapter;
+use crate::agent::tools::get_tool_definitions;
+use crate::agent::types::{
+    AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
+    ChatMessage,
+};
+use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
-use super::anthropic::{
+use super::{
+    build_system_prompt, check_iteration_limit, create_executor, emit_status, execute_tool_calls,
+    ToolCall,
+};
+use types::{
     AnthropicErrorResponse, AnthropicEvent, AnthropicMessage, AnthropicRequest, ContentBlock,
     ContentDelta, MessageContent, StreamedResponse,
 };
-use super::error::AgentError;
-use super::provider::ProviderAdapter;
-use super::tools::{get_tool_definitions, LocalExecutor, ToolExecutor, ToolName};
-use super::types::{
-    AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
-    AgentStatusPayload, ChatMessage, ToolEndPayload, ToolStartPayload,
-};
 
-const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION: &str = "2023-06-01";
-
-fn emit_status(app_handle: &AppHandle, status: AgentStatus, detail: Option<String>) {
-    let _ = app_handle.emit("agent-status", AgentStatusPayload::new(status, detail));
-}
+const API_URL: &str = "https://api.anthropic.com/v1/messages";
+const API_VERSION: &str = "2023-06-01";
 
 pub struct AnthropicAdapter {
     client: Client,
@@ -41,47 +42,23 @@ pub struct AnthropicAdapter {
 }
 
 impl AnthropicAdapter {
-    fn new(
+    pub fn new(
         config: AgentConfig,
         prompts: PromptsConfig,
         execution: ExecutionConfig,
-        api_key: String,
         project_path: PathBuf,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, AgentError> {
+        let api_key = env::var(&config.api_key_env)
+            .map_err(|_| AgentError::MissingApiKey(config.api_key_env.clone()))?;
+
+        Ok(Self {
             client: Client::new(),
             config,
             prompts,
             execution,
             api_key,
             project_path,
-        }
-    }
-
-    fn build_system_prompt(&self, custom: Option<String>) -> Option<String> {
-        let mut parts = Vec::new();
-
-        if !self.prompts.pre.is_empty() {
-            parts.push(self.prompts.pre.clone());
-        }
-
-        if let Some(custom) = custom {
-            parts.push(custom);
-        }
-
-        if !self.prompts.post.is_empty() {
-            parts.push(self.prompts.post.clone());
-        }
-
-        if parts.is_empty() {
-            None
-        } else {
-            Some(parts.join("\n\n"))
-        }
-    }
-
-    fn create_executor(&self) -> LocalExecutor {
-        LocalExecutor::new(self.project_path.clone(), self.execution.timeout_secs)
+        })
     }
 
     async fn stream_response(
@@ -91,7 +68,6 @@ impl AnthropicAdapter {
         app_handle: &AppHandle,
         cancel_token: &CancellationToken,
     ) -> Result<StreamedResponse, AgentError> {
-        // Check cancellation before starting
         if cancel_token.is_cancelled() {
             return Err(AgentError::Cancelled);
         }
@@ -117,9 +93,9 @@ impl AnthropicAdapter {
 
         let response = self
             .client
-            .post(ANTHROPIC_API_URL)
+            .post(API_URL)
             .header("x-api-key", &self.api_key)
-            .header("anthropic-version", ANTHROPIC_VERSION)
+            .header("anthropic-version", API_VERSION)
             .header("content-type", "application/json")
             .json(&request)
             .send()
@@ -142,7 +118,6 @@ impl AnthropicAdapter {
         let mut first_text_chunk = true;
 
         loop {
-            // Check cancellation during streaming
             if cancel_token.is_cancelled() {
                 warn!("Stream cancelled by user");
                 return Err(AgentError::Cancelled);
@@ -164,7 +139,6 @@ impl AnthropicAdapter {
 
                                 let is_text = self.process_sse_event(&event_data, app_handle, &mut streamed);
 
-                                // Emit streaming status on first text chunk
                                 if is_text && first_text_chunk {
                                     emit_status(app_handle, AgentStatus::Streaming, None);
                                     first_text_chunk = false;
@@ -258,13 +232,12 @@ impl AnthropicAdapter {
         app_handle: &AppHandle,
         cancel_token: &CancellationToken,
     ) -> Result<Option<String>, AgentError> {
-        let executor = self.create_executor();
+        let executor = create_executor(&self.project_path, &self.execution);
         let mut conversation = initial_messages;
         let max_iterations = self.execution.max_tool_iterations;
         let mut iteration = 0u32;
 
         loop {
-            // Check cancellation before each API call
             if cancel_token.is_cancelled() {
                 return Err(AgentError::Cancelled);
             }
@@ -287,94 +260,40 @@ impl AnthropicAdapter {
             }
 
             iteration += 1;
-            if iteration >= max_iterations {
-                return Err(AgentError::ToolExecutionError(format!(
-                    "Exceeded maximum tool iterations ({})",
-                    max_iterations
-                )));
-            }
+            check_iteration_limit(iteration, max_iterations)?;
 
             conversation.push(AnthropicMessage {
                 role: "assistant".to_string(),
                 content: MessageContent::Blocks(response.content_blocks.clone()),
             });
 
-            let mut tool_results = Vec::new();
-
-            for block in &response.content_blocks {
-                if let ContentBlock::ToolUse { id, name, input } = block {
-                    // Check cancellation before each tool execution
-                    if cancel_token.is_cancelled() {
-                        warn!("Tool execution cancelled by user");
-                        return Err(AgentError::Cancelled);
+            let tool_calls: Vec<ToolCall> = response
+                .content_blocks
+                .iter()
+                .filter_map(|block| {
+                    if let ContentBlock::ToolUse { id, name, input } = block {
+                        Some(ToolCall {
+                            id: id.clone(),
+                            name: name.clone(),
+                            input: input.clone(),
+                        })
+                    } else {
+                        None
                     }
+                })
+                .collect();
 
-                    info!("Executing tool: {} (id: {})", name, id);
+            let results =
+                execute_tool_calls(tool_calls, &executor, app_handle, cancel_token).await?;
 
-                    emit_status(app_handle, AgentStatus::ToolRunning, Some(name.clone()));
-
-                    let _ = app_handle.emit(
-                        "agent-tool-start",
-                        ToolStartPayload {
-                            tool_use_id: id.clone(),
-                            tool_name: name.clone(),
-                            tool_input: input.clone(),
-                        },
-                    );
-
-                    let tool_name = ToolName::from_str(name)
-                        .ok_or_else(|| AgentError::UnknownTool(name.clone()))?;
-
-                    // Execute tool with cancellation check
-                    let (output, is_error) = tokio::select! {
-                        _ = cancel_token.cancelled() => {
-                            warn!("Tool {} cancelled by user", name);
-                            ("Cancelled by user".to_string(), true)
-                        }
-                        result = executor.execute(tool_name, input.clone()) => {
-                            match result {
-                                Ok(result) => (result, false),
-                                Err(e) => (e.to_string(), true),
-                            }
-                        }
-                    };
-
-                    // If cancelled during tool execution, emit and return
-                    if cancel_token.is_cancelled() {
-                        let _ = app_handle.emit(
-                            "agent-tool-end",
-                            ToolEndPayload {
-                                tool_use_id: id.clone(),
-                                output: "Cancelled by user".to_string(),
-                                is_error: true,
-                            },
-                        );
-                        return Err(AgentError::Cancelled);
-                    }
-
-                    info!(
-                        "Tool {} completed (error: {}, output: {} chars)",
-                        name,
-                        is_error,
-                        output.len()
-                    );
-
-                    let _ = app_handle.emit(
-                        "agent-tool-end",
-                        ToolEndPayload {
-                            tool_use_id: id.clone(),
-                            output: output.clone(),
-                            is_error,
-                        },
-                    );
-
-                    tool_results.push(ContentBlock::ToolResult {
-                        tool_use_id: id.clone(),
-                        content: output,
-                        is_error: if is_error { Some(true) } else { None },
-                    });
-                }
-            }
+            let tool_results: Vec<ContentBlock> = results
+                .into_iter()
+                .map(|r| ContentBlock::ToolResult {
+                    tool_use_id: r.id,
+                    content: r.output,
+                    is_error: if r.is_error { Some(true) } else { None },
+                })
+                .collect();
 
             conversation.push(AnthropicMessage {
                 role: "user".to_string(),
@@ -403,7 +322,7 @@ impl ProviderAdapter for AnthropicAdapter {
         let anthropic_messages: Vec<AnthropicMessage> =
             messages.iter().map(AnthropicMessage::from).collect();
 
-        let system = self.build_system_prompt(system_prompt);
+        let system = build_system_prompt(&self.prompts, system_prompt);
 
         let message_id = Uuid::new_v4().to_string();
 
@@ -450,91 +369,5 @@ impl ProviderAdapter for AnthropicAdapter {
 
     fn model(&self) -> &str {
         &self.config.model
-    }
-}
-
-pub fn create_provider_adapter(
-    project_path: &Path,
-) -> Result<Arc<dyn ProviderAdapter>, AgentError> {
-    let project_config = ConfigService::load_project_config(project_path)
-        .map_err(|e| AgentError::ConfigError(e.to_string()))?;
-
-    let provider = project_config.agent.provider.to_lowercase();
-
-    match provider.as_str() {
-        "anthropic" => {
-            let api_key = env::var(&project_config.agent.api_key_env)
-                .map_err(|_| AgentError::MissingApiKey(project_config.agent.api_key_env.clone()))?;
-
-            Ok(Arc::new(AnthropicAdapter::new(
-                project_config.agent,
-                project_config.prompts,
-                project_config.execution,
-                api_key,
-                project_path.to_path_buf(),
-            )))
-        }
-        _ => Err(AgentError::UnsupportedProvider(provider)),
-    }
-}
-
-pub struct AgentState {
-    pub adapter: Option<Arc<dyn ProviderAdapter>>,
-    pub project_path: Option<String>,
-    pub cancel_token: Option<CancellationToken>,
-    pub is_running: bool,
-}
-
-impl AgentState {
-    pub fn new() -> Self {
-        Self {
-            adapter: None,
-            project_path: None,
-            cancel_token: None,
-            is_running: false,
-        }
-    }
-
-    pub fn initialize(&mut self, project_path: &str) -> Result<(), AgentError> {
-        let path = Path::new(project_path);
-        let adapter = create_provider_adapter(path)?;
-        self.adapter = Some(adapter);
-        self.project_path = Some(project_path.to_string());
-        Ok(())
-    }
-
-    pub fn get_adapter(&self) -> Option<Arc<dyn ProviderAdapter>> {
-        self.adapter.clone()
-    }
-
-    pub fn start_run(&mut self) -> CancellationToken {
-        let token = CancellationToken::new();
-        self.cancel_token = Some(token.clone());
-        self.is_running = true;
-        token
-    }
-
-    pub fn cancel(&mut self) {
-        if let Some(token) = self.cancel_token.take() {
-            token.cancel();
-        }
-        self.is_running = false;
-    }
-
-    pub fn finish_run(&mut self) {
-        self.cancel_token = None;
-        self.is_running = false;
-    }
-
-    pub fn clear(&mut self) {
-        self.cancel();
-        self.adapter = None;
-        self.project_path = None;
-    }
-}
-
-impl Default for AgentState {
-    fn default() -> Self {
-        Self::new()
     }
 }

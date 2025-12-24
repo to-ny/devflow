@@ -1,10 +1,10 @@
-mod anthropic;
 pub mod commands;
 mod error;
 mod provider;
-mod service;
+mod providers;
+mod state;
 mod tools;
 pub mod types;
 
 pub use provider::ProviderAdapter;
-pub use service::AgentState;
+pub use state::AgentState;
