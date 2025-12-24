@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useApp } from "../context/AppContext";
+import { useLatest } from "../hooks/useLatest";
 import type { ProjectConfig, NotificationAction } from "../types/config";
+import type {
+  ConfigChangedPayload,
+  ProviderInfo,
+} from "../types/generated/index";
 import "./SettingsPage.css";
 
 interface FormState {
@@ -139,6 +145,7 @@ function areFormsEqual(a: FormState, b: FormState): boolean {
 
 export function SettingsPage() {
   const { projectPath } = useApp();
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [form, setForm] = useState<FormState>(defaultFormState);
   const [savedForm, setSavedForm] = useState<FormState>(defaultFormState);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,30 +160,51 @@ export function SettingsPage() {
     () => !areFormsEqual(form, savedForm),
     [form, savedForm],
   );
+  const isDirtyRef = useLatest(isDirty);
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
+  // Fetch available providers on mount
   useEffect(() => {
+    invoke<ProviderInfo[]>("config_get_providers").then(setProviders);
+  }, []);
+
+  const loadConfig = useCallback(async () => {
     if (!projectPath) return;
-
-    async function loadConfig() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const config = await invoke<ProjectConfig>("config_load_project", {
-          projectPath,
-        });
-        const formState = configToFormState(config);
-        setForm(formState);
-        setSavedForm(formState);
-      } catch (e) {
-        setError(`Failed to load config: ${e}`);
-      } finally {
-        setIsLoading(false);
-      }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const config = await invoke<ProjectConfig>("config_load_project", {
+        projectPath,
+      });
+      const formState = configToFormState(config);
+      setForm(formState);
+      setSavedForm(formState);
+    } catch (e) {
+      setError(`Failed to load config: ${e}`);
+    } finally {
+      setIsLoading(false);
     }
-
-    loadConfig();
   }, [projectPath]);
+
+  // Load config on mount and project change
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  // Listen for external config changes
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+
+    listen<ConfigChangedPayload>("config-changed", (event) => {
+      if (!isDirtyRef.current && event.payload.project_path === projectPath) {
+        loadConfig();
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => unlisten?.();
+  }, [projectPath, loadConfig]);
 
   // Warn on page unload if there are unsaved changes
   useEffect(() => {
@@ -222,6 +250,51 @@ export function SettingsPage() {
     [validationErrors],
   );
 
+  const currentProvider = useMemo(
+    () => providers.find((p) => p.id === form.provider),
+    [providers, form.provider],
+  );
+
+  const currentModels = useMemo(
+    () => currentProvider?.models || [],
+    [currentProvider],
+  );
+
+  const handleProviderChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const providerId = e.target.value;
+      const provider = providers.find((p) => p.id === providerId);
+
+      setForm((prev) => ({
+        ...prev,
+        provider: providerId,
+        model: provider?.models[0] || "",
+        api_key_env: provider?.default_api_key_env || "",
+      }));
+      setSuccessMessage(null);
+    },
+    [providers],
+  );
+
+  const isCustomModel = useMemo(
+    () => !currentModels.includes(form.model),
+    [currentModels, form.model],
+  );
+
+  const handleModelSelectChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value;
+      if (value !== "__custom__") {
+        setForm((prev) => ({ ...prev, model: value }));
+        setSuccessMessage(null);
+      } else {
+        setForm((prev) => ({ ...prev, model: "" }));
+        setSuccessMessage(null);
+      }
+    },
+    [],
+  );
+
   const handleSave = async () => {
     if (!projectPath) return;
 
@@ -261,10 +334,12 @@ export function SettingsPage() {
     <div className="settings-page">
       <div className="settings-content">
         <div className="settings-header">
-          <h2>Project Settings</h2>
-          {isDirty && (
-            <div className="settings-unsaved">You have unsaved changes</div>
-          )}
+          <h2>
+            Project Settings
+            {isDirty && (
+              <span className="unsaved-indicator" title="Unsaved changes" />
+            )}
+          </h2>
           {error && <div className="settings-error">{error}</div>}
           {successMessage && (
             <div className="settings-success">{successMessage}</div>
@@ -280,23 +355,42 @@ export function SettingsPage() {
                 id="provider"
                 name="provider"
                 value={form.provider}
-                onChange={handleChange}
+                onChange={handleProviderChange}
               >
-                <option value="anthropic">Anthropic</option>
-                <option value="gemini">Gemini</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div
               className={`form-group ${validationErrors.model ? "has-error" : ""}`}
             >
               <label htmlFor="model">Model</label>
-              <input
-                type="text"
-                id="model"
-                name="model"
-                value={form.model}
-                onChange={handleChange}
-              />
+              <select
+                id="model-select"
+                value={isCustomModel ? "__custom__" : form.model}
+                onChange={handleModelSelectChange}
+              >
+                {currentModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+                <option value="__custom__">Other (custom)</option>
+              </select>
+              {isCustomModel && (
+                <input
+                  type="text"
+                  id="model"
+                  name="model"
+                  value={form.model}
+                  onChange={handleChange}
+                  placeholder="Enter custom model name"
+                  className="custom-model-input"
+                />
+              )}
               {validationErrors.model && (
                 <span className="field-error">{validationErrors.model}</span>
               )}
@@ -460,11 +554,11 @@ export function SettingsPage() {
 
         <div className="settings-footer">
           <button
-            className="save-button"
+            className={`save-button ${!isDirty && !isSaving ? "saved" : ""}`}
             onClick={handleSave}
             disabled={isSaving || !isDirty || hasValidationErrors}
           >
-            {isSaving ? "Saving..." : "Save Settings"}
+            {isSaving ? "Saving..." : isDirty ? "Save Settings" : "Saved"}
           </button>
         </div>
       </div>

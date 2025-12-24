@@ -1,6 +1,21 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ConfigChangedPayload {
+    pub project_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ProviderInfo {
+    pub id: String,
+    pub name: String,
+    pub models: Vec<String>,
+    pub default_api_key_env: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]

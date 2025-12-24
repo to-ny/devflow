@@ -21,13 +21,12 @@ pub async fn agent_send_message(
     // Use read lock to check state, then write lock to initialize and start
     let (adapter, cancel_token) = {
         // First, check with read lock
-        let needs_work = {
+        let needs_reload = {
             let state_guard = state.read().map_err(lock_error)?;
             if state_guard.is_running {
                 return Err("Agent is already processing a request".to_string());
             }
-            state_guard.project_path.as_ref() != Some(&project_path)
-                || state_guard.adapter.is_none()
+            state_guard.needs_reload(&project_path)
         };
 
         // If we need to modify state, get write lock
@@ -38,7 +37,8 @@ pub async fn agent_send_message(
             return Err("Agent is already processing a request".to_string());
         }
 
-        if needs_work {
+        if needs_reload {
+            info!("Reloading agent config for project: {}", project_path);
             state_guard.initialize(&project_path).map_err(|e| {
                 error!("Failed to initialize agent adapter: {}", e);
                 e.to_string()

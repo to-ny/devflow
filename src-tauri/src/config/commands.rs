@@ -1,7 +1,9 @@
 use std::path::Path;
 
+use tauri::{AppHandle, Emitter};
+
 use super::service::ConfigService;
-use super::types::ProjectConfig;
+use super::types::{ConfigChangedPayload, ProjectConfig, ProviderInfo};
 
 #[tauri::command]
 pub fn config_get_last_project() -> Result<Option<String>, String> {
@@ -29,6 +31,49 @@ pub fn config_load_project(project_path: String) -> Result<ProjectConfig, String
 }
 
 #[tauri::command]
-pub fn config_save_project(project_path: String, config: ProjectConfig) -> Result<(), String> {
-    ConfigService::save_project_config(Path::new(&project_path), &config).map_err(|e| e.to_string())
+pub fn config_get_providers() -> Vec<ProviderInfo> {
+    vec![
+        ProviderInfo {
+            id: "anthropic".to_string(),
+            name: "Anthropic".to_string(),
+            models: vec![
+                "claude-sonnet-4-20250514".to_string(),
+                "claude-opus-4-20250514".to_string(),
+                "claude-3-5-sonnet-20241022".to_string(),
+                "claude-3-5-haiku-20241022".to_string(),
+            ],
+            default_api_key_env: "ANTHROPIC_API_KEY".to_string(),
+        },
+        ProviderInfo {
+            id: "gemini".to_string(),
+            name: "Gemini".to_string(),
+            models: vec![
+                "gemini-2.0-flash".to_string(),
+                "gemini-2.0-flash-lite".to_string(),
+                "gemini-1.5-pro".to_string(),
+                "gemini-1.5-flash".to_string(),
+            ],
+            default_api_key_env: "GEMINI_API_KEY".to_string(),
+        },
+    ]
+}
+
+#[tauri::command]
+pub fn config_save_project(
+    app_handle: AppHandle,
+    project_path: String,
+    config: ProjectConfig,
+) -> Result<(), String> {
+    ConfigService::save_project_config(Path::new(&project_path), &config)
+        .map_err(|e| e.to_string())?;
+
+    // Emit event for listeners (agent marks itself stale, frontend refreshes)
+    let _ = app_handle.emit(
+        "config-changed",
+        ConfigChangedPayload {
+            project_path: project_path.clone(),
+        },
+    );
+
+    Ok(())
 }

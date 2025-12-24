@@ -31,14 +31,14 @@
   font-size: 1.25rem;
 }
 
-.settings-unsaved {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background-color: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  border-radius: var(--radius-sm);
-  color: #fbbf24;
-  font-size: 0.75rem;
-  margin-bottom: var(--spacing-sm);
+.unsaved-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #fbbf24;
+  border-radius: 50%;
+  margin-left: var(--spacing-sm);
+  vertical-align: middle;
 }
 
 .settings-error {
@@ -140,6 +140,10 @@
   cursor: pointer;
 }
 
+.custom-model-input {
+  margin-top: var(--spacing-sm);
+}
+
 .checkbox-group {
   display: flex;
   gap: var(--spacing-md);
@@ -185,4 +189,8 @@
 .save-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.save-button.saved {
+  background-color: var(--color-bg-tertiary, #374151);
 }

@@ -25,8 +25,10 @@ export type { ToolStartPayload } from "./ToolStartPayload";
 
 // Config types
 export type { AgentConfig } from "./AgentConfig";
+export type { ConfigChangedPayload } from "./ConfigChangedPayload";
 export type { ExecutionConfig } from "./ExecutionConfig";
 export type { NotificationAction } from "./NotificationAction";
 export type { NotificationsConfig } from "./NotificationsConfig";
 export type { ProjectConfig } from "./ProjectConfig";
 export type { PromptsConfig } from "./PromptsConfig";
+export type { ProviderInfo } from "./ProviderInfo";

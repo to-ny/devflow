@@ -6,14 +6,13 @@ pub mod watcher;
 
 use std::sync::{Mutex, RwLock};
 
-#[cfg(feature = "devtools")]
-use tauri::Manager;
+use tauri::{Listener, Manager};
 
 use agent::commands::{agent_cancel, agent_clear_state, agent_is_running, agent_send_message};
 use agent::AgentState;
 use config::commands::{
-    config_get_last_project, config_load_project, config_project_exists, config_save_project,
-    config_set_last_project,
+    config_get_last_project, config_get_providers, config_load_project, config_project_exists,
+    config_save_project, config_set_last_project,
 };
 use git::commands::{
     git_get_changed_files, git_get_file_diff_with_status, git_is_repository, git_stage_all,
@@ -38,6 +37,17 @@ pub fn run() {
         .manage(RwLock::new(AgentState::new()))
         .setup(|app| {
             menu::setup(app)?;
+
+            // Listen for config changes and mark agent state stale
+            let handle = app.handle().clone();
+            app.listen("config-changed", move |_| {
+                if let Some(state) = handle.try_state::<RwLock<AgentState>>() {
+                    if let Ok(mut guard) = state.write() {
+                        guard.mark_config_stale();
+                    }
+                }
+            });
+
             #[cfg(feature = "devtools")]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
@@ -60,6 +70,7 @@ pub fn run() {
             config_set_last_project,
             config_project_exists,
             config_load_project,
+            config_get_providers,
             config_save_project,
             watcher_start,
             watcher_stop,

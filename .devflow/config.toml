@@ -14,7 +14,4 @@ max_tool_iterations = 50
 
 [notifications]
 on_complete = ["window"]
-on_error = [
-    "sound",
-    "window",
-]
+on_error = ["window"]
