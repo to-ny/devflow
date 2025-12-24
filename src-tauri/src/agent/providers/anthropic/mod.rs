@@ -39,6 +39,7 @@ pub struct AnthropicAdapter {
     execution: ExecutionConfig,
     api_key: String,
     project_path: PathBuf,
+    app_system_prompt: &'static str,
 }
 
 impl AnthropicAdapter {
@@ -47,6 +48,7 @@ impl AnthropicAdapter {
         prompts: PromptsConfig,
         execution: ExecutionConfig,
         project_path: PathBuf,
+        app_system_prompt: &'static str,
     ) -> Result<Self, AgentError> {
         let api_key = env::var(&config.api_key_env)
             .map_err(|_| AgentError::MissingApiKey(config.api_key_env.clone()))?;
@@ -58,6 +60,7 @@ impl AnthropicAdapter {
             execution,
             api_key,
             project_path,
+            app_system_prompt,
         })
     }
 
@@ -322,14 +325,14 @@ impl ProviderAdapter for AnthropicAdapter {
         let anthropic_messages: Vec<AnthropicMessage> =
             messages.iter().map(AnthropicMessage::from).collect();
 
-        let system = build_system_prompt(&self.prompts, system_prompt);
+        let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
 
         let message_id = Uuid::new_v4().to_string();
 
         emit_status(&app_handle, AgentStatus::Sending, None);
 
         let result = self
-            .execute_tool_loop(anthropic_messages, system, &app_handle, &cancel_token)
+            .execute_tool_loop(anthropic_messages, Some(system), &app_handle, &cancel_token)
             .await;
 
         match result {

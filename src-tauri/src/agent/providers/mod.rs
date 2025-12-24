@@ -16,15 +16,20 @@ use super::types::{AgentStatus, AgentStatusPayload};
 pub use anthropic::AnthropicAdapter;
 pub use gemini::GeminiAdapter;
 
+pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../default_system_prompt.md");
+
 pub(crate) fn emit_status(app_handle: &AppHandle, status: AgentStatus, detail: Option<String>) {
     let _ = app_handle.emit("agent-status", AgentStatusPayload::new(status, detail));
 }
 
 pub(crate) fn build_system_prompt(
+    app_system_prompt: &str,
     prompts: &PromptsConfig,
     custom: Option<String>,
-) -> Option<String> {
+) -> String {
     let mut parts = Vec::new();
+
+    parts.push(app_system_prompt.to_string());
 
     if !prompts.pre.is_empty() {
         parts.push(prompts.pre.clone());
@@ -38,11 +43,7 @@ pub(crate) fn build_system_prompt(
         parts.push(prompts.post.clone());
     }
 
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join("\n\n"))
-    }
+    parts.join("\n\n")
 }
 
 pub(crate) fn create_executor(project_path: &Path, execution: &ExecutionConfig) -> LocalExecutor {
@@ -180,6 +181,7 @@ pub fn create_provider_adapter(
                 project_config.prompts,
                 project_config.execution,
                 project_path.to_path_buf(),
+                DEFAULT_SYSTEM_PROMPT,
             )?;
             Ok(Arc::new(adapter))
         }
@@ -189,9 +191,62 @@ pub fn create_provider_adapter(
                 project_config.prompts,
                 project_config.execution,
                 project_path.to_path_buf(),
+                DEFAULT_SYSTEM_PROMPT,
             )?;
             Ok(Arc::new(adapter))
         }
         _ => Err(AgentError::UnsupportedProvider(provider)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_system_prompt_includes_app_prompt() {
+        let prompts = PromptsConfig::default();
+        let result = build_system_prompt("App prompt", &prompts, None);
+        assert_eq!(result, "App prompt");
+    }
+
+    #[test]
+    fn test_build_system_prompt_combination_order() {
+        let prompts = PromptsConfig {
+            pre: "Pre prompt".to_string(),
+            post: "Post prompt".to_string(),
+        };
+        let result = build_system_prompt("App prompt", &prompts, Some("Custom prompt".to_string()));
+        assert_eq!(
+            result,
+            "App prompt\n\nPre prompt\n\nCustom prompt\n\nPost prompt"
+        );
+    }
+
+    #[test]
+    fn test_build_system_prompt_skips_empty_parts() {
+        let prompts = PromptsConfig {
+            pre: "".to_string(),
+            post: "Post prompt".to_string(),
+        };
+        let result = build_system_prompt("App prompt", &prompts, None);
+        assert_eq!(result, "App prompt\n\nPost prompt");
+    }
+
+    #[test]
+    fn test_build_system_prompt_joins_with_double_newline() {
+        let prompts = PromptsConfig {
+            pre: "Pre".to_string(),
+            post: "".to_string(),
+        };
+        let result = build_system_prompt("App", &prompts, None);
+        assert!(result.contains("\n\n"));
+        assert_eq!(result, "App\n\nPre");
+    }
+
+    #[test]
+    fn test_default_system_prompt_is_not_empty() {
+        assert!(!DEFAULT_SYSTEM_PROMPT.is_empty());
+        assert!(DEFAULT_SYSTEM_PROMPT.len() > 50); // Should have meaningful content
     }
 }

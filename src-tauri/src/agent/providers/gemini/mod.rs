@@ -39,6 +39,7 @@ pub struct GeminiAdapter {
     execution: ExecutionConfig,
     api_key: String,
     project_path: PathBuf,
+    app_system_prompt: &'static str,
 }
 
 impl GeminiAdapter {
@@ -47,6 +48,7 @@ impl GeminiAdapter {
         prompts: PromptsConfig,
         execution: ExecutionConfig,
         project_path: PathBuf,
+        app_system_prompt: &'static str,
     ) -> Result<Self, AgentError> {
         let api_key = env::var(&config.api_key_env)
             .map_err(|_| AgentError::MissingApiKey(config.api_key_env.clone()))?;
@@ -58,6 +60,7 @@ impl GeminiAdapter {
             execution,
             api_key,
             project_path,
+            app_system_prompt,
         })
     }
 
@@ -363,14 +366,14 @@ impl ProviderAdapter for GeminiAdapter {
         let gemini_contents: Vec<GeminiContent> =
             messages.iter().map(GeminiContent::from).collect();
 
-        let system = build_system_prompt(&self.prompts, system_prompt);
+        let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
 
         let message_id = Uuid::new_v4().to_string();
 
         emit_status(&app_handle, AgentStatus::Sending, None);
 
         let result = self
-            .execute_tool_loop(gemini_contents, system, &app_handle, &cancel_token)
+            .execute_tool_loop(gemini_contents, Some(system), &app_handle, &cancel_token)
             .await;
 
         match result {
