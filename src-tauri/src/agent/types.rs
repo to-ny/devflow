@@ -11,7 +11,7 @@ pub struct ToolDefinition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ChatMessage {
     pub id: String,
     pub role: MessageRole,
@@ -29,7 +29,7 @@ impl ChatMessage {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageRole {
     User,
@@ -37,26 +37,26 @@ pub enum MessageRole {
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct AgentChunkPayload {
     pub delta: String,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct AgentCompletePayload {
     pub message_id: String,
     pub stop_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct AgentErrorPayload {
     pub error: String,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ToolStartPayload {
     pub tool_use_id: String,
     pub tool_name: String,
@@ -65,7 +65,7 @@ pub struct ToolStartPayload {
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ToolEndPayload {
     pub tool_use_id: String,
     pub output: String,

@@ -7,6 +7,7 @@ export type {
   FileDiff,
   FileStatus,
   LineKind,
+  RepositoryCheckResult,
 } from "./generated";
 
 // Import types for use in helper functions

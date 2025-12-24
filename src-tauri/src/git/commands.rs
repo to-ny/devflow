@@ -5,7 +5,7 @@ use log::info;
 
 use super::highlighter::Highlighter;
 use super::service::GitService;
-use super::types::{ChangedFile, FileDiff, FileStatus, LineKind};
+use super::types::{ChangedFile, FileDiff, FileStatus, LineKind, RepositoryCheckResult};
 
 static HIGHLIGHTER: OnceLock<Highlighter> = OnceLock::new();
 
@@ -44,25 +44,9 @@ fn apply_syntax_highlighting(mut diff: FileDiff) -> FileDiff {
     diff
 }
 
-#[derive(serde::Serialize)]
-pub struct RepoCheckResult {
-    pub is_repo: bool,
-    pub path: String,
-    pub exists: bool,
-    pub is_dir: bool,
-    pub error: Option<String>,
-}
-
 #[tauri::command]
-pub fn git_is_repository(path: String) -> RepoCheckResult {
-    let result = GitService::check_repository(Path::new(&path));
-    RepoCheckResult {
-        is_repo: result.is_repo,
-        path,
-        exists: result.exists,
-        is_dir: result.is_dir,
-        error: result.error,
-    }
+pub fn git_is_repository(path: String) -> RepositoryCheckResult {
+    GitService::check_repository(Path::new(&path))
 }
 
 #[tauri::command]

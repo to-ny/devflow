@@ -14,7 +14,7 @@ import type {
   AgentChunkPayload,
   AgentCompletePayload,
   AgentErrorPayload,
-} from "../types/generated";
+} from "../types/agent";
 
 interface ChatState {
   messages: ChatMessage[];

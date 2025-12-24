@@ -4,4 +4,5 @@ export type AgentConfig = {
   provider: string;
   model: string;
   api_key_env: string;
+  max_tokens: number;
 };

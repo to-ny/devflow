@@ -13,7 +13,7 @@ pub struct AppState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ProjectConfig {
     pub agent: AgentConfig,
     #[serde(default)]
@@ -24,7 +24,7 @@ pub struct ProjectConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct AgentConfig {
     pub provider: String,
     pub model: String,
@@ -33,7 +33,7 @@ pub struct AgentConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct PromptsConfig {
     #[serde(default)]
     pub pre: String,
@@ -42,14 +42,15 @@ pub struct PromptsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ExecutionConfig {
+    #[ts(type = "number")]
     pub timeout_secs: u64,
     pub max_tool_iterations: u32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct NotificationsConfig {
     #[serde(default)]
     pub on_complete: Vec<NotificationAction>,
@@ -58,7 +59,7 @@ pub struct NotificationsConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum NotificationAction {
     Sound,

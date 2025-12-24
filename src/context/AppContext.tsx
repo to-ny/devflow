@@ -11,7 +11,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import type { ChangedFile, FileStatus } from "../types/git";
+import type {
+  ChangedFile,
+  FileStatus,
+  RepositoryCheckResult,
+} from "../types/git";
 
 interface AppState {
   projectPath: string | null;
@@ -21,14 +25,6 @@ interface AppState {
   error: string | null;
   changedFiles: ChangedFile[];
   selectedFile: string | null;
-}
-
-interface RepoCheckResult {
-  is_repo: boolean;
-  path: string;
-  exists: boolean;
-  is_dir: boolean;
-  error: string | null;
 }
 
 interface AppContextValue extends AppState {
@@ -114,9 +110,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
 
       if (selected && typeof selected === "string") {
-        const result = await invoke<RepoCheckResult>("git_is_repository", {
-          path: selected,
-        });
+        const result = await invoke<RepositoryCheckResult>(
+          "git_is_repository",
+          {
+            path: selected,
+          },
+        );
 
         if (!result.is_repo) {
           if (isMounted.current) {
@@ -221,9 +220,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         if (lastProject) {
-          const result = await invoke<RepoCheckResult>("git_is_repository", {
-            path: lastProject,
-          });
+          const result = await invoke<RepositoryCheckResult>(
+            "git_is_repository",
+            {
+              path: lastProject,
+            },
+          );
 
           if (cancelled) return;
 

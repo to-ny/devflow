@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct RepositoryCheckResult {
     pub is_repo: bool,
     pub exists: bool,
@@ -13,7 +13,7 @@ pub struct RepositoryCheckResult {
 /// Status of a file in git (staged or unstaged)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub enum FileStatus {
     Added,
     Modified,
@@ -25,7 +25,7 @@ pub enum FileStatus {
 
 /// A file with changes, tracking both staged (index) and unstaged (worktree) status
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct ChangedFile {
     pub path: String,
     /// Status of staged changes (in the index)
@@ -35,7 +35,7 @@ pub struct ChangedFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct FileDiff {
     pub path: String,
     pub status: FileStatus,
@@ -43,7 +43,7 @@ pub struct FileDiff {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct DiffHunk {
     pub old_start: u32,
     pub old_lines: u32,
@@ -53,7 +53,7 @@ pub struct DiffHunk {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub struct DiffLine {
     pub kind: LineKind,
     pub old_line_no: Option<u32>,
@@ -65,7 +65,7 @@ pub struct DiffLine {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../../src/types/generated/")]
+#[ts(export)]
 pub enum LineKind {
     Context,
     Addition,
