@@ -4,7 +4,7 @@ mod error;
 mod highlighter;
 mod service;
 mod types;
-mod wsl;
+pub mod wsl;
 
 pub use error::GitError;
 pub use service::GitService;

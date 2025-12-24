@@ -4,12 +4,12 @@ pub mod git;
 mod menu;
 pub mod watcher;
 
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 
 #[cfg(feature = "devtools")]
 use tauri::Manager;
 
-use agent::commands::{agent_clear_state, agent_send_message};
+use agent::commands::{agent_cancel, agent_clear_state, agent_is_running, agent_send_message};
 use agent::AgentState;
 use config::commands::{
     config_get_last_project, config_load_project, config_project_exists, config_save_project,
@@ -35,7 +35,7 @@ pub fn run() {
                 .build(),
         )
         .manage(WatcherState(Mutex::new(None)))
-        .manage(Mutex::new(AgentState::new()))
+        .manage(RwLock::new(AgentState::new()))
         .setup(|app| {
             menu::setup(app)?;
             #[cfg(feature = "devtools")]
@@ -49,6 +49,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             agent_send_message,
+            agent_cancel,
+            agent_is_running,
             agent_clear_state,
             git_is_repository,
             git_get_changed_files,

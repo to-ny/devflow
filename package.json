@@ -16,9 +16,13 @@
     "@tauri-apps/plugin-dialog": "^2.4.2",
     "@tauri-apps/plugin-log": "^2.7.1",
     "@tauri-apps/plugin-opener": "^2",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-resizable-panels": "^4.0.15"
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.0.15",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

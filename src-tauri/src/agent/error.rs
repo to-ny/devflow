@@ -31,4 +31,7 @@ pub enum AgentError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("Operation cancelled")]
+    Cancelled,
 }

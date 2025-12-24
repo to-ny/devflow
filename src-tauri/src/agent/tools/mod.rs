@@ -14,13 +14,13 @@ static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
     vec![
         ToolDefinition {
             name: "bash".to_string(),
-            description: "Execute a shell command in the project directory. Use this to run build commands, tests, git operations, or any other shell commands.".to_string(),
+            description: "Execute any shell command in the project directory. This is a general-purpose tool for running arbitrary bash commands. You can use it for:\n- Running any CLI tool or program installed on the system\n- File system operations (ls, find, mkdir, rm, cp, mv, etc.)\n- Version control operations (git add, git commit, git push, git status, etc.)\n- Package management (npm, cargo, pip, etc.)\n- Build and test commands (make, npm run, cargo build, etc.)\n- Text processing (grep, sed, awk, cat, etc.)\n- Any other command you would run in a terminal\n\nThe command runs with the project directory as the working directory. Both stdout and stderr are captured and returned.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "The shell command to execute"
+                        "description": "The shell command to execute. Can be any valid bash command or pipeline."
                     }
                 },
                 "required": ["command"]

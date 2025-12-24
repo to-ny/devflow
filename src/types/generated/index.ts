@@ -11,13 +11,17 @@ export type { LineKind } from "./LineKind";
 export type { RepositoryCheckResult } from "./RepositoryCheckResult";
 
 // Agent types
+export type { AgentCancelledPayload } from "./AgentCancelledPayload";
 export type { AgentChunkPayload } from "./AgentChunkPayload";
 export type { AgentCompletePayload } from "./AgentCompletePayload";
 export type { AgentErrorPayload } from "./AgentErrorPayload";
+export type { AgentStatus } from "./AgentStatus";
+export type { AgentStatusPayload } from "./AgentStatusPayload";
 export type { ChatMessage } from "./ChatMessage";
 export type { MessageRole } from "./MessageRole";
-export type { ToolStartPayload } from "./ToolStartPayload";
 export type { ToolEndPayload } from "./ToolEndPayload";
+export type { ToolExecution } from "./ToolExecution";
+export type { ToolStartPayload } from "./ToolStartPayload";
 
 // Config types
 export type { AgentConfig } from "./AgentConfig";

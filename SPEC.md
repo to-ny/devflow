@@ -50,7 +50,7 @@ Top menu bar includes View → Chat, Changes, Settings.
 
 - Prompt input with Send button
 - Streaming message history (user prompts, agent responses, tool executions)
-- Prompt history dropdown (last 50, in-memory)
+- Prompt history dropdown (last 50, localStorage)
 - Pre/post prompt injection (from config, invisible to user)
 
 ### Diff View
@@ -126,9 +126,9 @@ Variables available:
 
 ## MVP Scope
 
-Included: Single project, Anthropic only, LocalExecutor, unified diff with syntax highlighting, comments, pre/post prompts, in-memory prompt history, notifications, commit flow
+Included: Single project, Anthropic only, LocalExecutor, unified diff with syntax highlighting, comments, pre/post prompts, prompt history (localStorage), notifications, commit flow
 
-Excluded: Multi-project, other providers, ContainerExecutor, session persistence, prompt history persistence, permission system
+Excluded: Multi-project, other providers, ContainerExecutor, session persistence, permission system
 
 ## Implementation Notes
 

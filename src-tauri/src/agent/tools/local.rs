@@ -13,18 +13,43 @@ use super::types::{
 };
 use crate::agent::error::AgentError;
 
+#[cfg(windows)]
+use crate::git::wsl::{is_wsl_path, parse_wsl_path, WslPath};
+
 const MAX_OUTPUT_SIZE: usize = 1024 * 1024; // 1MB
+
+/// Windows flag to prevent console window from appearing
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub struct LocalExecutor {
     working_dir: PathBuf,
     timeout: Duration,
+    #[cfg(windows)]
+    wsl_path: Option<WslPath>,
 }
 
 impl LocalExecutor {
     pub fn new(working_dir: PathBuf, timeout_secs: u64) -> Self {
+        #[cfg(windows)]
+        let wsl_path = if is_wsl_path(&working_dir) {
+            let parsed = parse_wsl_path(&working_dir);
+            if let Some(ref wsl) = parsed {
+                debug!(
+                    "LocalExecutor: WSL path detected, distro={}, linux_path={}",
+                    wsl.distro, wsl.linux_path
+                );
+            }
+            parsed
+        } else {
+            None
+        };
+
         Self {
             working_dir,
             timeout: Duration::from_secs(timeout_secs),
+            #[cfg(windows)]
+            wsl_path,
         }
     }
 
@@ -81,21 +106,48 @@ impl LocalExecutor {
         output
     }
 
+    async fn run_shell_command(&self, command: &str) -> std::io::Result<std::process::Output> {
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(ref wsl) = self.wsl_path {
+                debug!(
+                    "Running command via WSL: distro={}, path={}",
+                    wsl.distro, wsl.linux_path
+                );
+                Command::new("wsl.exe")
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .args(["-d", &wsl.distro, "sh", "-c"])
+                    .arg(format!("cd '{}' && {}", wsl.linux_path, command))
+                    .output()
+                    .await
+            } else {
+                Command::new("cmd")
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .args(["/C", command])
+                    .current_dir(&self.working_dir)
+                    .output()
+                    .await
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            Command::new("sh")
+                .arg("-c")
+                .arg(command)
+                .current_dir(&self.working_dir)
+                .output()
+                .await
+        }
+    }
+
     async fn execute_bash(&self, input: serde_json::Value) -> Result<String, AgentError> {
         let input: BashInput = serde_json::from_value(input)
             .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
         debug!("Executing bash command: {}", input.command);
 
-        let result = timeout(
-            self.timeout,
-            Command::new("sh")
-                .arg("-c")
-                .arg(&input.command)
-                .current_dir(&self.working_dir)
-                .output(),
-        )
-        .await;
+        let result = timeout(self.timeout, self.run_shell_command(&input.command)).await;
 
         match result {
             Ok(Ok(output)) => {
