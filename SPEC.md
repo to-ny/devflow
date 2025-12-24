@@ -18,7 +18,8 @@ Desktop application for AI-assisted iterative code development with integrated d
 
 ```
 Frontend (React + Vite + TypeScript):
-  WelcomeScreen, ChatPanel, DiffView, FileTree, CommentEditor, CommitModal
+  BottomNav, WelcomeScreen, ChatPage, ChangesPage, SettingsPage,
+  ChatPanel, DiffView, FileTree, CommentEditor, CommitModal
 
 Backend (Tauri + Rust):
   AgentOrchestrator, ProviderAdapter (trait) → AnthropicAdapter, ToolExecutor (trait) → LocalExecutor,
@@ -38,10 +39,12 @@ Communication: Tauri commands (invoke) and events (emit)
 
 ### Layout
 
-Three-column layout (all resizable):
-- Left: FileTree (changed files list, click to select)
-- Center: DiffView (unified diff, syntax highlighted, comment overlay)
-- Right: ChatPanel (prompt input, message history, streaming output)
+Page-based navigation with bottom bar (3 centered icons):
+- Chat: full-page conversation with agent
+- Changes: two-column (FileTree | DiffView with comments)
+- Settings: configuration form
+
+Top menu bar includes View → Chat, Changes, Settings.
 
 ### Chat Panel
 
@@ -49,8 +52,6 @@ Three-column layout (all resizable):
 - Streaming message history (user prompts, agent responses, tool executions)
 - Prompt history dropdown (last 50, in-memory)
 - Pre/post prompt injection (from config, invisible to user)
-- "Send Comments" button → renders template, sends to agent, clears comments
-- "Commit" button → opens CommitModal
 
 ### Diff View
 
@@ -59,6 +60,8 @@ Three-column layout (all resizable):
 - Click line or drag range → opens CommentEditor
 - Visual indicators for commented lines
 - Auto-refresh on file system changes
+- "Send Comments" button → renders template, sends to agent, clears comments, navigates to Chat
+- "Commit" button → opens CommitModal, navigates to Chat after send
 
 ### File Tree
 
@@ -71,6 +74,16 @@ Three-column layout (all resizable):
 - Global comments (entire changeset) and line-specific comments
 - Stored in memory until "Send Comments" clicked
 - Template variables: `{{comments}}` (array with file, lines, selected_code, text), `{{global_comment}}`
+
+### Settings
+
+Structured form for project config (.devflow/config.toml):
+- Agent: provider, model, api_key_env, max_tokens
+- Prompts: pre, post (textareas)
+- Execution: timeout_secs, max_tool_iterations
+- Notifications: on_complete, on_error (checkboxes)
+
+Save button validates and writes config.
 
 ### Commit Flow
 
@@ -100,7 +113,7 @@ Location: `<project>/.devflow/config.toml`
 Schema:
 - `[agent]`: provider (string), model (string), api_key_env (string, env var name), max_tokens (int)
 - `[prompts]`: pre (string), post (string)
-- `[execution]`: timeout_secs (int)
+- `[execution]`: timeout_secs (int), max_tool_iterations (int)
 - `[notifications]`: on_complete, on_error (arrays, values: "sound", "window")
 
 ## Templates
@@ -130,9 +143,11 @@ Implementation order:
 6. AnthropicAdapter + ChatPanel streaming
 7. ToolExecutor (LocalExecutor)
 8. AgentOrchestrator (tool loop)
-9. Template rendering
-10. Notifications
-11. Commit flow
+9. Page navigation (BottomNav, ChatPage, ChangesPage)
+10. Settings page
+11. Template rendering
+12. Notifications
+13. Commit flow
 
 Gotchas:
 - Anthropic API uses server-sent events for streaming
