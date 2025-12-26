@@ -158,9 +158,22 @@ Gotchas:
 - WSL paths: route git and shell commands through `wsl.exe -d <distro>` for proper execution
 - Debounce file watcher events
 
-Tool definitions for Anthropic API:
-- bash: `{ command: string }` — execute shell command
-- read_file: `{ path: string }` — read file contents
-- write_file: `{ path: string, content: string }` — create/overwrite file
-- edit_file: `{ path: string, old_text: string, new_text: string }` — replace text in file
-- list_directory: `{ path: string }` — list directory contents
+Tools (LocalExecutor):
+- bash: `{ command, timeout? }` — execute shell command
+- read_file: `{ path, offset?, limit? }` — read file contents
+- write_file: `{ path, content }` — create/overwrite file
+- edit_file: `{ path, old_text, new_text, replace_all? }` — replace text in file
+- multi_edit: `{ path, edits[] }` — apply multiple edits atomically
+- list_directory: `{ path }` — list directory contents
+- glob: `{ pattern, path? }` — find files by pattern (sorted by mtime)
+- grep: `{ pattern, path?, include? }` — search file contents with regex
+- notebook_read: `{ path }` — read Jupyter notebook cells
+- notebook_edit: `{ path, cell_number, new_source, cell_type?, edit_mode? }` — edit notebook cells
+- web_fetch: `{ url, prompt? }` — fetch URL content
+- todo_read: `{}` — read session todo list
+- todo_write: `{ todos[] }` — update session todo list
+
+Tools (AgentOrchestrator):
+- web_search: `{ query, allowed_domains?, blocked_domains? }` — search web via external API
+- agent: `{ description, prompt }` — spawn sub-agent for complex tasks
+- exit_plan_mode: `{ plan }` — exit planning mode with approved plan

@@ -46,8 +46,14 @@ pub(crate) fn build_system_prompt(
     parts.join("\n\n")
 }
 
-pub(crate) fn create_executor(project_path: &Path, execution: &ExecutionConfig) -> LocalExecutor {
-    LocalExecutor::new(project_path.to_path_buf(), execution.timeout_secs)
+use super::tools::SessionState;
+
+pub(crate) fn create_executor(
+    project_path: &Path,
+    execution: &ExecutionConfig,
+    session: SessionState,
+) -> LocalExecutor {
+    LocalExecutor::with_session(project_path.to_path_buf(), execution.timeout_secs, session)
 }
 
 use log::{info, warn};

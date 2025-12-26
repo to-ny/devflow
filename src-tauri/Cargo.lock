@@ -810,10 +810,12 @@ dependencies = [
  "async-trait",
  "directories",
  "futures",
+ "glob",
  "log",
  "notify",
  "notify-debouncer-mini",
  "once_cell",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -831,6 +833,7 @@ dependencies = [
  "toml 0.8.2",
  "ts-rs",
  "uuid",
+ "walkdir",
 ]
 
 [[package]]

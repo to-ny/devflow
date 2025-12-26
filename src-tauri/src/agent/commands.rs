@@ -19,7 +19,7 @@ pub async fn agent_send_message(
     system_prompt: Option<String>,
 ) -> Result<(), String> {
     // Use read lock to check state, then write lock to initialize and start
-    let (adapter, cancel_token) = {
+    let (adapter, session, cancel_token) = {
         // First, check with read lock
         let needs_reload = {
             let state_guard = state.read().map_err(lock_error)?;
@@ -48,12 +48,13 @@ pub async fn agent_send_message(
         let adapter = state_guard
             .get_adapter()
             .ok_or_else(|| "Agent not initialized".to_string())?;
+        let session = state_guard.get_session();
         let token = state_guard.start_run();
-        (adapter, token)
+        (adapter, session, token)
     };
 
     let result = adapter
-        .send_message(messages, system_prompt, app_handle, cancel_token)
+        .send_message(messages, system_prompt, session, app_handle, cancel_token)
         .await;
 
     // Mark run as finished

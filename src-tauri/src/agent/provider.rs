@@ -3,6 +3,7 @@ use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::error::AgentError;
+use super::tools::SessionState;
 use super::types::ChatMessage;
 
 #[async_trait]
@@ -11,6 +12,7 @@ pub trait ProviderAdapter: Send + Sync {
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
+        session: SessionState,
         app_handle: AppHandle,
         cancel_token: CancellationToken,
     ) -> Result<(), AgentError>;

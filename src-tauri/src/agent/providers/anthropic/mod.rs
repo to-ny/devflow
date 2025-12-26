@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::agent::error::AgentError;
 use crate::agent::provider::ProviderAdapter;
-use crate::agent::tools::get_tool_definitions;
+use crate::agent::tools::{get_tool_definitions, SessionState};
 use crate::agent::types::{
     AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
     ChatMessage,
@@ -232,10 +232,11 @@ impl AnthropicAdapter {
         &self,
         initial_messages: Vec<AnthropicMessage>,
         system_prompt: Option<String>,
+        session: SessionState,
         app_handle: &AppHandle,
         cancel_token: &CancellationToken,
     ) -> Result<Option<String>, AgentError> {
-        let executor = create_executor(&self.project_path, &self.execution);
+        let executor = create_executor(&self.project_path, &self.execution, session);
         let mut conversation = initial_messages;
         let max_iterations = self.execution.max_tool_iterations;
         let mut iteration = 0u32;
@@ -319,6 +320,7 @@ impl ProviderAdapter for AnthropicAdapter {
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
+        session: SessionState,
         app_handle: AppHandle,
         cancel_token: CancellationToken,
     ) -> Result<(), AgentError> {
@@ -332,7 +334,7 @@ impl ProviderAdapter for AnthropicAdapter {
         emit_status(&app_handle, AgentStatus::Sending, None);
 
         let result = self
-            .execute_tool_loop(anthropic_messages, Some(system), &app_handle, &cancel_token)
+            .execute_tool_loop(anthropic_messages, Some(system), session, &app_handle, &cancel_token)
             .await;
 
         match result {

@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 use super::error::AgentError;
 use super::provider::ProviderAdapter;
 use super::providers::create_provider_adapter;
+use super::tools::SessionState;
 
 pub struct AgentState {
     pub adapter: Option<Arc<dyn ProviderAdapter>>,
@@ -13,6 +14,7 @@ pub struct AgentState {
     pub cancel_token: Option<CancellationToken>,
     pub is_running: bool,
     pub config_stale: bool,
+    pub session: SessionState,
 }
 
 impl AgentState {
@@ -23,7 +25,12 @@ impl AgentState {
             cancel_token: None,
             is_running: false,
             config_stale: false,
+            session: SessionState::new(),
         }
+    }
+
+    pub fn get_session(&self) -> SessionState {
+        self.session.clone()
     }
 
     pub fn mark_config_stale(&mut self) {
@@ -73,6 +80,7 @@ impl AgentState {
         self.adapter = None;
         self.project_path = None;
         self.config_stale = false;
+        self.session = SessionState::new();
     }
 }
 
