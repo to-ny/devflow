@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use log::debug;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -44,10 +43,6 @@ impl ShellExecutor {
         #[cfg(target_os = "windows")]
         {
             if let Some(ref wsl) = self.wsl_path {
-                debug!(
-                    "Running command via WSL: distro={}, path={}",
-                    wsl.distro, wsl.linux_path
-                );
                 Command::new("wsl.exe")
                     .creation_flags(CREATE_NO_WINDOW)
                     .args(["-d", &wsl.distro, "sh", "-c"])
@@ -78,8 +73,6 @@ impl ShellExecutor {
     pub async fn execute(&self, input: serde_json::Value) -> Result<String, AgentError> {
         let input: BashInput = serde_json::from_value(input)
             .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
-
-        debug!("Executing bash command: {}", input.command);
 
         let cmd_timeout = input
             .timeout

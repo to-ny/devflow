@@ -3,5 +3,6 @@ import type { AgentConfig } from "./AgentConfig";
 import type { ExecutionConfig } from "./ExecutionConfig";
 import type { NotificationsConfig } from "./NotificationsConfig";
 import type { PromptsConfig } from "./PromptsConfig";
+import type { SearchConfig } from "./SearchConfig";
 
-export type ProjectConfig = { agent: AgentConfig, prompts: PromptsConfig, execution: ExecutionConfig, notifications: NotificationsConfig, };
+export type ProjectConfig = { agent: AgentConfig, prompts: PromptsConfig, execution: ExecutionConfig, notifications: NotificationsConfig, search: SearchConfig, };

@@ -1,17 +1,19 @@
 mod context;
 mod file;
 mod notebook;
+mod search;
 mod shell;
 mod state;
+mod subagent;
 mod web;
 
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use log::debug;
+use tokio_util::sync::CancellationToken;
 
 pub use context::ExecutionContext;
-pub use state::SessionState;
+pub use state::{PlanApproval, SessionState};
 
 use super::executor::ToolExecutor;
 use super::types::ToolName;
@@ -24,28 +26,32 @@ pub struct LocalExecutor {
     ctx: ExecutionContext,
     session: SessionState,
     shell: shell::ShellExecutor,
+    cancel_token: CancellationToken,
 }
 
 impl LocalExecutor {
     #[cfg(test)]
     pub fn new(working_dir: PathBuf, timeout_secs: u64) -> Self {
-        Self::with_session(working_dir, timeout_secs, SessionState::new())
+        Self::with_session(
+            working_dir,
+            timeout_secs,
+            SessionState::new(),
+            CancellationToken::new(),
+        )
     }
 
-    pub fn with_session(working_dir: PathBuf, timeout_secs: u64, session: SessionState) -> Self {
+    pub fn with_session(
+        working_dir: PathBuf,
+        timeout_secs: u64,
+        session: SessionState,
+        cancel_token: CancellationToken,
+    ) -> Self {
         let ctx = ExecutionContext::new(working_dir.clone(), timeout_secs);
 
         #[cfg(windows)]
         let shell = {
             let wsl_path = if is_wsl_path(&working_dir) {
-                let parsed = parse_wsl_path(&working_dir);
-                if let Some(ref wsl) = parsed {
-                    debug!(
-                        "LocalExecutor: WSL path detected, distro={}, linux_path={}",
-                        wsl.distro, wsl.linux_path
-                    );
-                }
-                parsed
+                parse_wsl_path(&working_dir)
             } else {
                 None
             };
@@ -59,11 +65,11 @@ impl LocalExecutor {
             ctx,
             session,
             shell,
+            cancel_token,
         }
     }
 
     async fn execute_todo_read(&self) -> Result<String, AgentError> {
-        debug!("Reading todos");
         let todos = self.session.get_todos().await;
 
         if todos.is_empty() {
@@ -84,11 +90,46 @@ impl LocalExecutor {
         let input: TodoWriteInput = serde_json::from_value(input)
             .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
-        debug!("Writing {} todos", input.todos.len());
         let count = input.todos.len();
         self.session.set_todos(input.todos).await;
 
         Ok(format!("Updated {} todos", count))
+    }
+
+    async fn execute_submit_plan(&self, input: serde_json::Value) -> Result<String, AgentError> {
+        use super::types::SubmitPlanInput;
+
+        let input: SubmitPlanInput = serde_json::from_value(input)
+            .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
+
+        self.session.set_plan(input.plan.clone()).await;
+
+        Ok("Plan submitted for review. Awaiting user approval.".to_string())
+    }
+
+    async fn execute_dispatch_agent(&self, input: serde_json::Value) -> Result<String, AgentError> {
+        use super::types::DispatchAgentInput;
+        use crate::config::ConfigService;
+
+        let input: DispatchAgentInput = serde_json::from_value(input)
+            .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
+
+        // Load config to get max_agent_depth
+        let config = ConfigService::load_project_config(&self.ctx.working_dir)
+            .map_err(|e| AgentError::ConfigError(e.to_string()))?;
+
+        let max_depth = config.execution.max_agent_depth;
+
+        // Execute the sub-agent with a child cancellation token
+        subagent::execute_subagent(
+            &self.ctx.working_dir,
+            &input.task,
+            input.tools,
+            max_depth,
+            0, // current_depth starts at 0
+            &self.cancel_token,
+        )
+        .await
     }
 }
 
@@ -113,12 +154,9 @@ impl ToolExecutor for LocalExecutor {
             ToolName::TodoRead => self.execute_todo_read().await,
             ToolName::TodoWrite => self.execute_todo_write(input).await,
             ToolName::WebFetch => web::fetch(&self.ctx, input).await,
-            ToolName::WebSearch | ToolName::Agent | ToolName::ExitPlanMode => {
-                Err(AgentError::ToolExecutionError(format!(
-                    "Tool '{}' is handled by the orchestration layer",
-                    tool.as_str()
-                )))
-            }
+            ToolName::SearchWeb => search::search(&self.ctx, input).await,
+            ToolName::SubmitPlan => self.execute_submit_plan(input).await,
+            ToolName::DispatchAgent => self.execute_dispatch_agent(input).await,
         }
     }
 }
@@ -297,8 +335,12 @@ mod tests {
     async fn test_session_state_shared() {
         let session = SessionState::new();
         let temp_dir = tempfile::tempdir().unwrap();
-        let executor =
-            LocalExecutor::with_session(temp_dir.path().to_path_buf(), 30, session.clone());
+        let executor = LocalExecutor::with_session(
+            temp_dir.path().to_path_buf(),
+            30,
+            session.clone(),
+            CancellationToken::new(),
+        );
 
         executor
             .execute(

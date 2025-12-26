@@ -9,6 +9,7 @@ export type {
   AgentStatusPayload,
   ChatMessage,
   MessageRole,
+  PlanReadyPayload,
   ToolEndPayload,
   ToolExecution,
   ToolStartPayload,

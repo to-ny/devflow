@@ -17,36 +17,15 @@ pub enum ToolName {
     NotebookEdit,
     // Web Tools
     WebFetch,
-    WebSearch,
+    SearchWeb,
     // Task Management Tools
     TodoRead,
     TodoWrite,
-    Agent,
-    ExitPlanMode,
+    DispatchAgent,
+    SubmitPlan,
 }
 
 impl ToolName {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ToolName::Bash => "bash",
-            ToolName::ReadFile => "read_file",
-            ToolName::WriteFile => "write_file",
-            ToolName::EditFile => "edit_file",
-            ToolName::MultiEdit => "multi_edit",
-            ToolName::ListDirectory => "list_directory",
-            ToolName::Glob => "glob",
-            ToolName::Grep => "grep",
-            ToolName::NotebookRead => "notebook_read",
-            ToolName::NotebookEdit => "notebook_edit",
-            ToolName::WebFetch => "web_fetch",
-            ToolName::WebSearch => "web_search",
-            ToolName::TodoRead => "todo_read",
-            ToolName::TodoWrite => "todo_write",
-            ToolName::Agent => "agent",
-            ToolName::ExitPlanMode => "exit_plan_mode",
-        }
-    }
-
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "bash" => Some(ToolName::Bash),
@@ -60,11 +39,11 @@ impl ToolName {
             "notebook_read" => Some(ToolName::NotebookRead),
             "notebook_edit" => Some(ToolName::NotebookEdit),
             "web_fetch" => Some(ToolName::WebFetch),
-            "web_search" => Some(ToolName::WebSearch),
+            "search_web" => Some(ToolName::SearchWeb),
             "todo_read" => Some(ToolName::TodoRead),
             "todo_write" => Some(ToolName::TodoWrite),
-            "agent" => Some(ToolName::Agent),
-            "exit_plan_mode" => Some(ToolName::ExitPlanMode),
+            "dispatch_agent" => Some(ToolName::DispatchAgent),
+            "submit_plan" => Some(ToolName::SubmitPlan),
             _ => None,
         }
     }
@@ -152,6 +131,25 @@ pub struct WebFetchInput {
     pub url: String,
     #[serde(rename = "prompt")]
     pub _prompt: Option<String>, // Not yet implemented
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebSearchInput {
+    pub query: String,
+    pub allowed_domains: Option<Vec<String>>,
+    pub blocked_domains: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SubmitPlanInput {
+    pub plan: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DispatchAgentInput {
+    pub task: String,
+    #[serde(default)]
+    pub tools: Option<Vec<String>>,
 }
 
 // Task Management Tool Inputs

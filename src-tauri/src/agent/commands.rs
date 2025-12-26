@@ -1,6 +1,5 @@
 use std::sync::{PoisonError, RwLock};
 
-use log::{error, info};
 use tauri::{AppHandle, Emitter, State};
 
 use super::state::AgentState;
@@ -38,11 +37,9 @@ pub async fn agent_send_message(
         }
 
         if needs_reload {
-            info!("Reloading agent config for project: {}", project_path);
-            state_guard.initialize(&project_path).map_err(|e| {
-                error!("Failed to initialize agent adapter: {}", e);
-                e.to_string()
-            })?;
+            state_guard
+                .initialize(&project_path)
+                .map_err(|e| e.to_string())?;
         }
 
         let adapter = state_guard
@@ -63,10 +60,7 @@ pub async fn agent_send_message(
         state_guard.finish_run();
     }
 
-    result.map_err(|e| {
-        error!("Failed to send message: {}", e);
-        e.to_string()
-    })
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -77,10 +71,9 @@ pub fn agent_cancel(
     let mut state_guard = state.write().map_err(lock_error)?;
 
     if !state_guard.is_running {
-        return Ok(()); // Nothing to cancel
+        return Ok(());
     }
 
-    info!("Cancelling agent operation");
     state_guard.cancel();
 
     // Emit status update
@@ -103,4 +96,39 @@ pub fn agent_clear_state(state: State<'_, RwLock<AgentState>>) -> Result<(), Str
     let mut state_guard = state.write().map_err(lock_error)?;
     state_guard.clear();
     Ok(())
+}
+
+#[tauri::command]
+pub async fn agent_approve_plan(state: State<'_, RwLock<AgentState>>) -> Result<bool, String> {
+    let session = {
+        let state_guard = state.read().map_err(lock_error)?;
+        state_guard.get_session()
+    };
+
+    let result = session.approve_plan().await;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn agent_reject_plan(
+    state: State<'_, RwLock<AgentState>>,
+    reason: Option<String>,
+) -> Result<bool, String> {
+    let session = {
+        let state_guard = state.read().map_err(lock_error)?;
+        state_guard.get_session()
+    };
+
+    let result = session.reject_plan(reason).await;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn agent_has_pending_plan(state: State<'_, RwLock<AgentState>>) -> Result<bool, String> {
+    let session = {
+        let state_guard = state.read().map_err(lock_error)?;
+        state_guard.get_session()
+    };
+
+    Ok(session.has_pending_plan().await)
 }

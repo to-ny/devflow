@@ -17,6 +17,7 @@ import type {
   AgentStatusPayload,
   AgentCancelledPayload,
   AgentStatus,
+  PlanReadyPayload,
   ToolStartPayload,
   ToolEndPayload,
 } from "../types/agent";
@@ -51,6 +52,7 @@ interface ChatState {
   statusText: string;
   messageQueue: QueuedMessage[];
   promptHistory: string[];
+  pendingPlan: string | null;
 }
 
 interface ChatContextValue extends ChatState {
@@ -62,6 +64,8 @@ interface ChatContextValue extends ChatState {
   removeFromQueue: (id: string) => void;
   updateQueuedMessage: (id: string, content: string) => void;
   clearPromptHistory: () => void;
+  approvePlan: () => Promise<void>;
+  rejectPlan: (reason?: string) => Promise<void>;
 }
 
 interface ChatProviderProps {
@@ -74,6 +78,9 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 function generateId(): string {
   return crypto.randomUUID();
 }
+
+// Partial state for clearing pending plan - use spread in state updates
+const CLEAR_PENDING_PLAN = { pendingPlan: null } as const;
 
 function loadPromptHistory(): string[] {
   try {
@@ -121,6 +128,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     statusText: "",
     messageQueue: [],
     promptHistory: loadPromptHistory(),
+    ...CLEAR_PENDING_PLAN,
   }));
 
   const isMounted = useRef(true);
@@ -151,6 +159,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       agentStatus: "idle" as AgentStatus,
       statusText: "",
       messageQueue: [],
+      ...CLEAR_PENDING_PLAN,
     }));
   }, [projectPath]);
 
@@ -289,6 +298,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
               isLoading: false,
               agentStatus: "cancelled" as AgentStatus,
               statusText: "Cancelled",
+              ...CLEAR_PENDING_PLAN,
             };
           }
 
@@ -321,6 +331,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
             toolExecutions: [],
             agentStatus: "cancelled" as AgentStatus,
             statusText: "Cancelled",
+            ...CLEAR_PENDING_PLAN,
           };
         });
       }
@@ -383,6 +394,32 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
   const clearPromptHistory = useCallback(() => {
     localStorage.removeItem(PROMPT_HISTORY_KEY);
     setState((prev) => ({ ...prev, promptHistory: [] }));
+  }, []);
+
+  const approvePlan = useCallback(async () => {
+    try {
+      await invoke("agent_approve_plan");
+      setState((prev) => ({ ...prev, ...CLEAR_PENDING_PLAN }));
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        ...CLEAR_PENDING_PLAN,
+        error: `Failed to approve plan: ${error}`,
+      }));
+    }
+  }, []);
+
+  const rejectPlan = useCallback(async (reason?: string) => {
+    try {
+      await invoke("agent_reject_plan", { reason });
+      setState((prev) => ({ ...prev, ...CLEAR_PENDING_PLAN }));
+    } catch (error) {
+      setState((prev) => ({
+        ...prev,
+        ...CLEAR_PENDING_PLAN,
+        error: `Failed to reject plan: ${error}`,
+      }));
+    }
   }, []);
 
   useEffect(() => {
@@ -486,6 +523,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
                 isLoading: false,
                 agentStatus: "cancelled" as AgentStatus,
                 statusText: "Cancelled",
+                ...CLEAR_PENDING_PLAN,
               };
             }
 
@@ -518,6 +556,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
               toolExecutions: [],
               agentStatus: "cancelled" as AgentStatus,
               statusText: "Cancelled",
+              ...CLEAR_PENDING_PLAN,
             };
           });
         },
@@ -562,6 +601,18 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         },
       );
 
+      const unlistenPlanReady = await listen<PlanReadyPayload>(
+        "agent-plan-ready",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => ({
+            ...prev,
+            pendingPlan: event.payload.plan,
+            streamContent: "",
+          }));
+        },
+      );
+
       if (cancelled) {
         unlistenChunk();
         unlistenComplete();
@@ -570,6 +621,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenCancelled();
         unlistenToolStart();
         unlistenToolEnd();
+        unlistenPlanReady();
       } else {
         unlisteners.push(
           unlistenChunk,
@@ -579,6 +631,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           unlistenCancelled,
           unlistenToolStart,
           unlistenToolEnd,
+          unlistenPlanReady,
         );
       }
     }
@@ -603,6 +656,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         removeFromQueue,
         updateQueuedMessage,
         clearPromptHistory,
+        approvePlan,
+        rejectPlan,
       }}
     >
       {children}

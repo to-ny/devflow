@@ -174,6 +174,6 @@ Tools (LocalExecutor):
 - todo_write: `{ todos[] }` — update session todo list
 
 Tools (AgentOrchestrator):
-- web_search: `{ query, allowed_domains?, blocked_domains? }` — search web via external API
-- agent: `{ description, prompt }` — spawn sub-agent for complex tasks
-- exit_plan_mode: `{ plan }` — exit planning mode with approved plan
+- search_web: `{ query, allowed_domains?, blocked_domains? }` — search web via external API
+- dispatch_agent: `{ task, tools? }` — spawn sub-agent for complex tasks
+- submit_plan: `{ plan }` — submit plan for user approval

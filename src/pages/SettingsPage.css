@@ -194,3 +194,20 @@
 .save-button.saved {
   background-color: var(--color-bg-tertiary, #374151);
 }
+
+.form-input.disabled {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.form-hint {
+  display: block;
+  margin-top: var(--spacing-xs);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.number-input {
+  max-width: 120px;
+}

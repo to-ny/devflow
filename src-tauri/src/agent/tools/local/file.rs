@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use glob::glob as glob_match;
-use log::debug;
 use regex::Regex;
 use tokio::fs;
 use walkdir::WalkDir;
@@ -45,7 +44,6 @@ pub async fn read_file(
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!("Reading file: {}", path.display());
 
     let content = ctx
         .with_timeout("read file", fs::read_to_string(&path))
@@ -73,7 +71,6 @@ pub async fn write_file(
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!("Writing file: {}", path.display());
 
     if let Some(parent) = path.parent() {
         if !parent.exists() {
@@ -94,11 +91,6 @@ pub async fn edit_file(
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!(
-        "Editing file: {} (replacing {} bytes)",
-        path.display(),
-        input.old_text.len()
-    );
 
     let content = ctx
         .with_timeout("read file", fs::read_to_string(&path))
@@ -129,11 +121,6 @@ pub async fn multi_edit(
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!(
-        "Multi-edit file: {} ({} edits)",
-        path.display(),
-        input.edits.len()
-    );
 
     let content = ctx
         .with_timeout("read file", fs::read_to_string(&path))
@@ -167,7 +154,6 @@ pub async fn list_directory(
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!("Listing directory: {}", path.display());
 
     let mut read_dir = ctx
         .with_timeout("read directory", fs::read_dir(&path))
@@ -201,7 +187,6 @@ pub async fn glob(ctx: &ExecutionContext, input: serde_json::Value) -> Result<St
 
     let pattern = base_path.join(&input.pattern);
     let pattern_str = pattern.to_string_lossy();
-    debug!("Glob pattern: {}", pattern_str);
 
     // Use bounded heap to keep only the newest MAX_GLOB_RESULTS files
     let mut heap: BinaryHeap<GlobEntry> = BinaryHeap::new();
@@ -228,7 +213,7 @@ pub async fn glob(ctx: &ExecutionContext, input: serde_json::Value) -> Result<St
                 }
             }
             Ok(_) => {}
-            Err(e) => debug!("Glob entry error: {}", e),
+            Err(_) => {}
         }
     }
 
@@ -274,13 +259,6 @@ pub async fn grep(ctx: &ExecutionContext, input: serde_json::Value) -> Result<St
 
     let include_pattern = input.include.clone();
     let working_dir = ctx.working_dir.clone();
-
-    debug!(
-        "Grep: pattern='{}', path='{}', include={:?}",
-        input.pattern,
-        base_path.display(),
-        include_pattern
-    );
 
     // Use spawn_blocking for file I/O intensive operation
     let results = tokio::task::spawn_blocking(move || {

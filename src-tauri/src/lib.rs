@@ -8,7 +8,10 @@ use std::sync::{Mutex, RwLock};
 
 use tauri::{Listener, Manager};
 
-use agent::commands::{agent_cancel, agent_clear_state, agent_is_running, agent_send_message};
+use agent::commands::{
+    agent_approve_plan, agent_cancel, agent_clear_state, agent_has_pending_plan, agent_is_running,
+    agent_reject_plan, agent_send_message,
+};
 use agent::AgentState;
 use config::commands::{
     config_get_last_project, config_get_providers, config_load_project, config_project_exists,
@@ -62,6 +65,9 @@ pub fn run() {
             agent_cancel,
             agent_is_running,
             agent_clear_state,
+            agent_approve_plan,
+            agent_reject_plan,
+            agent_has_pending_plan,
             git_is_repository,
             git_get_changed_files,
             git_get_file_diff_with_status,

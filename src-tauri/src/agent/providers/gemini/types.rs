@@ -142,8 +142,7 @@ pub enum ResponsePart {
         #[serde(rename = "functionCall")]
         function_call: FunctionCall,
     },
-    #[serde(rename_all = "camelCase")]
-    Unknown(serde_json::Value),
+    Unknown,
 }
 
 // Handle Gemini's actual response format

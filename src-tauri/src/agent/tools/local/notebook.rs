@@ -1,4 +1,3 @@
-use log::debug;
 use tokio::fs;
 
 use super::context::ExecutionContext;
@@ -10,7 +9,6 @@ pub async fn read(ctx: &ExecutionContext, input: serde_json::Value) -> Result<St
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!("Reading notebook: {}", path.display());
 
     let content = ctx
         .with_timeout("read notebook", fs::read_to_string(&path))
@@ -61,11 +59,6 @@ pub async fn edit(ctx: &ExecutionContext, input: serde_json::Value) -> Result<St
         .map_err(|e| AgentError::InvalidToolInput(format!("Invalid input: {}", e)))?;
 
     let path = ctx.resolve_path(&input.path)?;
-    debug!(
-        "Editing notebook: {} (cell {})",
-        path.display(),
-        input.cell_number
-    );
 
     let content = ctx
         .with_timeout("read notebook", fs::read_to_string(&path))

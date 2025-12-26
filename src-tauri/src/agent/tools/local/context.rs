@@ -2,6 +2,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use reqwest::Client;
 use tokio::time::timeout;
 
 use crate::agent::error::AgentError;
@@ -11,13 +12,21 @@ pub const MAX_OUTPUT_SIZE: usize = 1024 * 1024; // 1MB
 pub struct ExecutionContext {
     pub working_dir: PathBuf,
     pub timeout: Duration,
+    pub http_client: Client,
 }
 
 impl ExecutionContext {
     pub fn new(working_dir: PathBuf, timeout_secs: u64) -> Self {
+        let timeout = Duration::from_secs(timeout_secs);
+        let http_client = Client::builder()
+            .timeout(timeout)
+            .build()
+            .expect("Failed to create HTTP client");
+
         Self {
             working_dir,
-            timeout: Duration::from_secs(timeout_secs),
+            timeout,
+            http_client,
         }
     }
 

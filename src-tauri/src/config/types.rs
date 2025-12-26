@@ -36,6 +36,34 @@ pub struct ProjectConfig {
     pub execution: ExecutionConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
+    #[serde(default)]
+    pub search: SearchConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SearchConfig {
+    #[serde(default = "default_search_provider")]
+    pub provider: String,
+    #[serde(default = "default_max_results")]
+    pub max_results: u32,
+}
+
+fn default_search_provider() -> String {
+    "duckduckgo".to_string()
+}
+
+fn default_max_results() -> u32 {
+    10
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            provider: default_search_provider(),
+            max_results: default_max_results(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -62,6 +90,12 @@ pub struct ExecutionConfig {
     #[ts(type = "number")]
     pub timeout_secs: u64,
     pub max_tool_iterations: u32,
+    #[serde(default = "default_max_agent_depth")]
+    pub max_agent_depth: u32,
+}
+
+fn default_max_agent_depth() -> u32 {
+    3
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]

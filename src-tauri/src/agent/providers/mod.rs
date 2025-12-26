@@ -1,5 +1,8 @@
 pub mod anthropic;
 pub mod gemini;
+pub mod headless;
+
+pub use headless::run_headless_loop;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -46,20 +49,25 @@ pub(crate) fn build_system_prompt(
     parts.join("\n\n")
 }
 
+use tokio_util::sync::CancellationToken;
+
 use super::tools::SessionState;
 
 pub(crate) fn create_executor(
     project_path: &Path,
     execution: &ExecutionConfig,
     session: SessionState,
+    cancel_token: CancellationToken,
 ) -> LocalExecutor {
-    LocalExecutor::with_session(project_path.to_path_buf(), execution.timeout_secs, session)
+    LocalExecutor::with_session(
+        project_path.to_path_buf(),
+        execution.timeout_secs,
+        session,
+        cancel_token,
+    )
 }
 
-use log::{info, warn};
-use tokio_util::sync::CancellationToken;
-
-use super::types::{ToolEndPayload, ToolStartPayload};
+use super::types::{PlanReadyPayload, ToolEndPayload, ToolStartPayload};
 
 pub(crate) struct ToolCall {
     pub id: String,
@@ -77,6 +85,7 @@ pub(crate) struct ToolResult {
 pub(crate) async fn execute_tool_calls(
     tool_calls: Vec<ToolCall>,
     executor: &LocalExecutor,
+    session: &SessionState,
     app_handle: &AppHandle,
     cancel_token: &CancellationToken,
 ) -> Result<Vec<ToolResult>, AgentError> {
@@ -86,11 +95,8 @@ pub(crate) async fn execute_tool_calls(
 
     for call in tool_calls {
         if cancel_token.is_cancelled() {
-            warn!("Tool execution cancelled by user");
             return Err(AgentError::Cancelled);
         }
-
-        info!("Executing tool: {} (id: {})", call.name, call.id);
 
         emit_status(
             app_handle,
@@ -112,7 +118,6 @@ pub(crate) async fn execute_tool_calls(
 
         let (output, is_error) = tokio::select! {
             _ = cancel_token.cancelled() => {
-                warn!("Tool {} cancelled by user", call.name);
                 ("Cancelled by user".to_string(), true)
             }
             result = executor.execute(tool_name, call.input.clone()) => {
@@ -135,13 +140,6 @@ pub(crate) async fn execute_tool_calls(
             return Err(AgentError::Cancelled);
         }
 
-        info!(
-            "Tool {} completed (error: {}, output: {} chars)",
-            call.name,
-            is_error,
-            output.len()
-        );
-
         let _ = app_handle.emit(
             "agent-tool-end",
             ToolEndPayload {
@@ -150,6 +148,58 @@ pub(crate) async fn execute_tool_calls(
                 is_error,
             },
         );
+
+        if tool_name == ToolName::SubmitPlan && !is_error {
+            if let Some(plan) = session.get_plan().await {
+                let _ =
+                    app_handle.emit("agent-plan-ready", PlanReadyPayload { plan: plan.clone() });
+
+                // Wait for user approval
+                emit_status(
+                    app_handle,
+                    AgentStatus::ToolWaiting,
+                    Some("Awaiting plan approval".to_string()),
+                );
+
+                // Wait for approval/rejection from user
+                if let Some(approval) = session.wait_for_plan_approval().await {
+                    use super::tools::PlanApproval;
+
+                    match approval {
+                        PlanApproval::Approved => {
+                            results.push(ToolResult {
+                                id: call.id,
+                                name: call.name,
+                                output: "Plan approved by user. Proceed with implementation."
+                                    .to_string(),
+                                is_error: false,
+                            });
+                        }
+                        PlanApproval::Rejected(reason) => {
+                            let rejection_msg = match reason {
+                                Some(r) => format!("Plan rejected by user: {}", r),
+                                None => "Plan rejected by user.".to_string(),
+                            };
+                            results.push(ToolResult {
+                                id: call.id,
+                                name: call.name,
+                                output: rejection_msg,
+                                is_error: true,
+                            });
+                        }
+                    }
+                } else {
+                    // No pending plan (shouldn't happen)
+                    results.push(ToolResult {
+                        id: call.id,
+                        name: call.name,
+                        output,
+                        is_error,
+                    });
+                }
+                continue;
+            }
+        }
 
         results.push(ToolResult {
             id: call.id,

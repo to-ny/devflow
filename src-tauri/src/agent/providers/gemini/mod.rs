@@ -5,24 +5,27 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use log::{error, info, warn};
 use reqwest::Client;
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::agent::error::AgentError;
-use crate::agent::provider::ProviderAdapter;
+use crate::agent::provider::{HeadlessResult, ProviderAdapter};
 use crate::agent::tools::{get_tool_definitions, SessionState};
 use crate::agent::types::{
     AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
-    ChatMessage,
+    ChatMessage, ToolDefinition,
 };
 use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
 use super::{
     build_system_prompt, check_iteration_limit, create_executor, emit_status, execute_tool_calls,
-    ToolCall,
+    headless::{
+        HeadlessResponse, HeadlessStreamer, ToolCall as HeadlessToolCall,
+        ToolResult as HeadlessToolResult,
+    },
+    run_headless_loop, ToolCall,
 };
 use types::{
     FunctionDeclaration, FunctionResponse, FunctionResponseContent, GeminiContent, GeminiPart,
@@ -105,12 +108,6 @@ impl GeminiAdapter {
             }),
         };
 
-        info!(
-            "Sending message to Gemini API (model: {}, {} contents)",
-            self.config.model,
-            contents.len()
-        );
-
         emit_status(app_handle, AgentStatus::Thinking, None);
 
         let response = self
@@ -124,7 +121,6 @@ impl GeminiAdapter {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            error!("Gemini API error: {} - {}", status, body);
             return Err(AgentError::ApiError(format!("{}: {}", status, body)));
         }
 
@@ -135,13 +131,11 @@ impl GeminiAdapter {
 
         loop {
             if cancel_token.is_cancelled() {
-                warn!("Stream cancelled by user");
                 return Err(AgentError::Cancelled);
             }
 
             tokio::select! {
                 _ = cancel_token.cancelled() => {
-                    warn!("Stream cancelled by user");
                     return Err(AgentError::Cancelled);
                 }
                 chunk_result = stream.next() => {
@@ -198,10 +192,7 @@ impl GeminiAdapter {
 
         let response: GeminiResponse = match serde_json::from_str(&data) {
             Ok(r) => r,
-            Err(e) => {
-                warn!("Failed to parse Gemini SSE event: {} - data: {}", e, data);
-                return false;
-            }
+            Err(_) => return false,
         };
 
         if let Some(error) = response.error {
@@ -237,9 +228,7 @@ impl GeminiAdapter {
                                 types::ResponsePart::FunctionCall { function_call } => {
                                     streamed.add_function_call(function_call);
                                 }
-                                types::ResponsePart::Unknown(value) => {
-                                    warn!("Unknown Gemini response part: {:?}", value);
-                                }
+                                types::ResponsePart::Unknown => {}
                             }
                         }
                     }
@@ -258,7 +247,12 @@ impl GeminiAdapter {
         app_handle: &AppHandle,
         cancel_token: &CancellationToken,
     ) -> Result<Option<String>, AgentError> {
-        let executor = create_executor(&self.project_path, &self.execution, session);
+        let executor = create_executor(
+            &self.project_path,
+            &self.execution,
+            session.clone(),
+            cancel_token.clone(),
+        );
         let mut conversation = initial_contents;
         let max_iterations = self.execution.max_tool_iterations;
         let mut iteration = 0u32;
@@ -278,10 +272,6 @@ impl GeminiAdapter {
                 .await?;
 
             if !response.has_function_calls() {
-                info!(
-                    "Agent response complete (finish_reason: {:?})",
-                    response.finish_reason
-                );
                 return Ok(response.finish_reason);
             }
 
@@ -314,7 +304,8 @@ impl GeminiAdapter {
                 .collect();
 
             let results =
-                execute_tool_calls(tool_calls, &executor, app_handle, cancel_token).await?;
+                execute_tool_calls(tool_calls, &executor, &session, app_handle, cancel_token)
+                    .await?;
 
             let function_responses: Vec<GeminiPart> = results
                 .into_iter()
@@ -346,12 +337,238 @@ impl GeminiAdapter {
             });
 
             emit_status(app_handle, AgentStatus::ToolWaiting, None);
-
-            info!(
-                "Continuing conversation with tool results (iteration {}/{})",
-                iteration, max_iterations
-            );
         }
+    }
+
+    fn build_tools_from_definitions(&self, tools: &[ToolDefinition]) -> Vec<GeminiTool> {
+        let declarations: Vec<FunctionDeclaration> =
+            tools.iter().map(FunctionDeclaration::from).collect();
+
+        vec![GeminiTool {
+            function_declarations: declarations,
+        }]
+    }
+
+    async fn stream_response_headless(
+        &self,
+        contents: &[GeminiContent],
+        system: Option<String>,
+        tools: &[ToolDefinition],
+        cancel_token: &CancellationToken,
+    ) -> Result<StreamedResponse, AgentError> {
+        if cancel_token.is_cancelled() {
+            return Err(AgentError::Cancelled);
+        }
+
+        let system_instruction = system.map(|text| GeminiSystemInstruction {
+            parts: vec![GeminiPart::Text { text }],
+        });
+
+        let request = GeminiRequest {
+            contents: contents.to_vec(),
+            system_instruction,
+            tools: Some(self.build_tools_from_definitions(tools)),
+            generation_config: Some(GenerationConfig {
+                max_output_tokens: Some(self.config.max_tokens),
+            }),
+        };
+
+        let response = self
+            .client
+            .post(self.api_url())
+            .header("content-type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentError::ApiError(format!("{}: {}", status, body)));
+        }
+
+        let mut streamed = StreamedResponse::new();
+        let mut stream = response.bytes_stream();
+        let mut buffer = String::new();
+
+        loop {
+            if cancel_token.is_cancelled() {
+                return Err(AgentError::Cancelled);
+            }
+
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    return Err(AgentError::Cancelled);
+                }
+                chunk_result = stream.next() => {
+                    match chunk_result {
+                        Some(Ok(chunk)) => {
+                            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+                            while let Some((event_end, delim_len)) = buffer
+                                .find("\r\n\r\n")
+                                .map(|i| (i, 4))
+                                .or_else(|| buffer.find("\n\n").map(|i| (i, 2)))
+                            {
+                                let event_data = buffer[..event_end].to_string();
+                                buffer = buffer[event_end + delim_len..].to_string();
+                                self.process_sse_event_headless(&event_data, &mut streamed);
+                            }
+                        }
+                        Some(Err(e)) => {
+                            return Err(AgentError::Http(e));
+                        }
+                        None => break,
+                    }
+                }
+            }
+        }
+
+        Ok(streamed)
+    }
+
+    fn process_sse_event_headless(&self, event_data: &str, streamed: &mut StreamedResponse) {
+        let mut data = None;
+
+        for line in event_data.lines() {
+            if let Some(suffix) = line.strip_prefix("data: ") {
+                data = Some(suffix.to_string());
+            }
+        }
+
+        let Some(data) = data else { return };
+
+        let response: GeminiResponse = match serde_json::from_str(&data) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        if let Some(candidates) = response.candidates {
+            for candidate in candidates {
+                if let Some(reason) = candidate.finish_reason {
+                    streamed.set_finish_reason(reason);
+                }
+
+                if let Some(content) = candidate.content {
+                    if let Some(parts) = content.parts {
+                        for part in parts {
+                            match part {
+                                types::ResponsePart::Text { text } => {
+                                    streamed.append_text(&text);
+                                }
+                                types::ResponsePart::FunctionCall { function_call } => {
+                                    streamed.add_function_call(function_call);
+                                }
+                                types::ResponsePart::Unknown => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn to_headless_response(&self, response: &StreamedResponse) -> HeadlessResponse {
+        let tool_calls = response
+            .function_calls
+            .iter()
+            .map(|fc| HeadlessToolCall {
+                id: fc.name.clone(), // Gemini uses name as ID
+                name: fc.name.clone(),
+                input: fc.args.clone(),
+            })
+            .collect();
+
+        HeadlessResponse {
+            text: response.text_content.clone(),
+            tool_calls,
+        }
+    }
+}
+
+#[async_trait]
+impl HeadlessStreamer for GeminiAdapter {
+    type Conversation = Vec<GeminiContent>;
+
+    fn initial_conversation(&self, messages: Vec<ChatMessage>) -> Self::Conversation {
+        messages.iter().map(GeminiContent::from).collect()
+    }
+
+    async fn stream_response(
+        &self,
+        conversation: &Self::Conversation,
+        system_prompt: Option<String>,
+        tools: &[ToolDefinition],
+        cancel_token: &CancellationToken,
+    ) -> Result<HeadlessResponse, AgentError> {
+        let response = self
+            .stream_response_headless(conversation, system_prompt, tools, cancel_token)
+            .await?;
+
+        Ok(self.to_headless_response(&response))
+    }
+
+    fn append_assistant_response(
+        &self,
+        conversation: &mut Self::Conversation,
+        response: &HeadlessResponse,
+    ) {
+        let mut parts = Vec::new();
+
+        if !response.text.is_empty() {
+            parts.push(GeminiPart::Text {
+                text: response.text.clone(),
+            });
+        }
+
+        for tc in &response.tool_calls {
+            parts.push(GeminiPart::FunctionCall {
+                function_call: types::FunctionCall {
+                    name: tc.name.clone(),
+                    args: tc.input.clone(),
+                },
+            });
+        }
+
+        conversation.push(GeminiContent {
+            role: "model".to_string(),
+            parts,
+        });
+    }
+
+    fn append_tool_results(
+        &self,
+        conversation: &mut Self::Conversation,
+        results: Vec<HeadlessToolResult>,
+    ) {
+        let parts: Vec<GeminiPart> = results
+            .into_iter()
+            .map(|r| {
+                let response_content = if r.is_error {
+                    FunctionResponseContent {
+                        result: None,
+                        error: Some(r.output),
+                    }
+                } else {
+                    FunctionResponseContent {
+                        result: Some(r.output),
+                        error: None,
+                    }
+                };
+
+                GeminiPart::FunctionResponse {
+                    function_response: FunctionResponse {
+                        name: r.name,
+                        response: response_content,
+                    },
+                }
+            })
+            .collect();
+
+        conversation.push(GeminiContent {
+            role: "user".to_string(),
+            parts,
+        });
     }
 }
 
@@ -375,7 +592,13 @@ impl ProviderAdapter for GeminiAdapter {
         emit_status(&app_handle, AgentStatus::Sending, None);
 
         let result = self
-            .execute_tool_loop(gemini_contents, Some(system), session, &app_handle, &cancel_token)
+            .execute_tool_loop(
+                gemini_contents,
+                Some(system),
+                session,
+                &app_handle,
+                &cancel_token,
+            )
             .await;
 
         match result {
@@ -411,6 +634,34 @@ impl ProviderAdapter for GeminiAdapter {
                 Err(e)
             }
         }
+    }
+
+    async fn run_headless(
+        &self,
+        messages: Vec<ChatMessage>,
+        system_prompt: Option<String>,
+        tools: Vec<ToolDefinition>,
+        session: SessionState,
+        cancel_token: CancellationToken,
+    ) -> Result<HeadlessResult, AgentError> {
+        let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
+        let executor = create_executor(
+            &self.project_path,
+            &self.execution,
+            session,
+            cancel_token.clone(),
+        );
+
+        run_headless_loop(
+            self,
+            messages,
+            Some(system),
+            tools,
+            &executor,
+            self.execution.max_tool_iterations,
+            &cancel_token,
+        )
+        .await
     }
 
     fn model(&self) -> &str {

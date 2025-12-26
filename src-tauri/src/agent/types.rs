@@ -155,3 +155,9 @@ impl AgentStatus {
 pub struct AgentCancelledPayload {
     pub reason: String,
 }
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct PlanReadyPayload {
+    pub plan: String,
+}

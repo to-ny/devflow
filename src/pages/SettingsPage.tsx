@@ -22,6 +22,9 @@ interface FormState {
   // Execution
   timeout_secs: number;
   max_tool_iterations: number;
+  max_agent_depth: number;
+  // Search
+  search_max_results: number;
   // Notifications
   on_complete_sound: boolean;
   on_complete_window: boolean;
@@ -35,6 +38,8 @@ interface ValidationErrors {
   max_tokens?: string;
   timeout_secs?: string;
   max_tool_iterations?: string;
+  max_agent_depth?: string;
+  search_max_results?: string;
 }
 
 const defaultFormState: FormState = {
@@ -46,6 +51,8 @@ const defaultFormState: FormState = {
   post: "",
   timeout_secs: 30,
   max_tool_iterations: 50,
+  max_agent_depth: 3,
+  search_max_results: 10,
   on_complete_sound: false,
   on_complete_window: false,
   on_error_sound: false,
@@ -62,6 +69,8 @@ function configToFormState(config: ProjectConfig): FormState {
     post: config.prompts.post,
     timeout_secs: Number(config.execution.timeout_secs),
     max_tool_iterations: config.execution.max_tool_iterations,
+    max_agent_depth: config.execution.max_agent_depth,
+    search_max_results: config.search.max_results,
     on_complete_sound: config.notifications.on_complete.includes("sound"),
     on_complete_window: config.notifications.on_complete.includes("window"),
     on_error_sound: config.notifications.on_error.includes("sound"),
@@ -92,10 +101,15 @@ function formStateToConfig(form: FormState): ProjectConfig {
     execution: {
       timeout_secs: form.timeout_secs,
       max_tool_iterations: form.max_tool_iterations,
+      max_agent_depth: form.max_agent_depth,
     },
     notifications: {
       on_complete,
       on_error,
+    },
+    search: {
+      provider: "duckduckgo",
+      max_results: form.search_max_results,
     },
   };
 }
@@ -123,6 +137,14 @@ function validateForm(form: FormState): ValidationErrors {
     errors.max_tool_iterations = "Max iterations must be between 1 and 1,000";
   }
 
+  if (form.max_agent_depth < 1 || form.max_agent_depth > 10) {
+    errors.max_agent_depth = "Max agent depth must be between 1 and 10";
+  }
+
+  if (form.search_max_results < 1 || form.search_max_results > 50) {
+    errors.search_max_results = "Max results must be between 1 and 50";
+  }
+
   return errors;
 }
 
@@ -136,6 +158,8 @@ function areFormsEqual(a: FormState, b: FormState): boolean {
     a.post === b.post &&
     a.timeout_secs === b.timeout_secs &&
     a.max_tool_iterations === b.max_tool_iterations &&
+    a.max_agent_depth === b.max_agent_depth &&
+    a.search_max_results === b.search_max_results &&
     a.on_complete_sound === b.on_complete_sound &&
     a.on_complete_window === b.on_complete_window &&
     a.on_error_sound === b.on_error_sound &&
@@ -496,6 +520,48 @@ export function SettingsPage() {
               {validationErrors.max_tool_iterations && (
                 <span className="field-error">
                   {validationErrors.max_tool_iterations}
+                </span>
+              )}
+            </div>
+            <div
+              className={`form-group ${validationErrors.max_agent_depth ? "has-error" : ""}`}
+            >
+              <label htmlFor="max_agent_depth">Max Sub-agent Depth</label>
+              <input
+                type="number"
+                id="max_agent_depth"
+                name="max_agent_depth"
+                value={form.max_agent_depth}
+                onChange={handleChange}
+                min={1}
+                max={10}
+              />
+              {validationErrors.max_agent_depth && (
+                <span className="field-error">
+                  {validationErrors.max_agent_depth}
+                </span>
+              )}
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <h3>Search</h3>
+            <div
+              className={`form-group ${validationErrors.search_max_results ? "has-error" : ""}`}
+            >
+              <label htmlFor="search_max_results">Max Search Results</label>
+              <input
+                type="number"
+                id="search_max_results"
+                name="search_max_results"
+                value={form.search_max_results}
+                onChange={handleChange}
+                min={1}
+                max={50}
+              />
+              {validationErrors.search_max_results && (
+                <span className="field-error">
+                  {validationErrors.search_max_results}
                 </span>
               )}
             </div>

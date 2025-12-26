@@ -83,6 +83,14 @@ function ToolBlock({ execution }: ToolBlockProps) {
         return "📝";
       case "list_directory":
         return "📁";
+      case "web_fetch":
+        return "🌐";
+      case "search_web":
+        return "🔍";
+      case "dispatch_agent":
+        return "🤖";
+      case "submit_plan":
+        return "📋";
       default:
         return "🔧";
     }
@@ -100,6 +108,14 @@ function ToolBlock({ execution }: ToolBlockProps) {
         return "Edit File";
       case "list_directory":
         return "List Directory";
+      case "web_fetch":
+        return "Fetch URL";
+      case "search_web":
+        return "Web Search";
+      case "dispatch_agent":
+        return "Sub-Agent";
+      case "submit_plan":
+        return "Submit Plan";
       default:
         return name;
     }
@@ -194,6 +210,14 @@ function HistoricalToolBlock({ toolExec }: HistoricalToolBlockProps) {
         return "📝";
       case "list_directory":
         return "📁";
+      case "web_fetch":
+        return "🌐";
+      case "search_web":
+        return "🔍";
+      case "dispatch_agent":
+        return "🤖";
+      case "submit_plan":
+        return "📋";
       default:
         return "🔧";
     }
@@ -211,6 +235,14 @@ function HistoricalToolBlock({ toolExec }: HistoricalToolBlockProps) {
         return "Edit File";
       case "list_directory":
         return "List Directory";
+      case "web_fetch":
+        return "Fetch URL";
+      case "search_web":
+        return "Web Search";
+      case "dispatch_agent":
+        return "Sub-Agent";
+      case "submit_plan":
+        return "Submit Plan";
       default:
         return name;
     }
@@ -334,6 +366,168 @@ function PromptHistoryDropdown({
   );
 }
 
+interface PlanReviewBlockProps {
+  plan: string;
+  onApprove: () => void;
+  onReject: (reason?: string) => void;
+}
+
+function PlanReviewBlock({ plan, onApprove, onReject }: PlanReviewBlockProps) {
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  // Using inline styles with CSS variables for theme consistency
+  return (
+    <div
+      style={{
+        border: "2px solid var(--color-accent)",
+        borderRadius: "var(--radius-md)",
+        margin: "12px 0",
+        backgroundColor: "var(--color-bg-secondary)",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "10px 16px",
+          backgroundColor: "var(--color-accent)",
+          color: "white",
+          fontWeight: 500,
+          fontSize: "0.9rem",
+        }}
+      >
+        <span>📋</span>
+        <span>Plan Ready for Review</span>
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          padding: "16px",
+          maxHeight: "300px",
+          overflowY: "auto",
+          color: "var(--color-text-primary)",
+          fontSize: "0.875rem",
+          lineHeight: 1.6,
+        }}
+      >
+        <MarkdownContent content={plan} />
+      </div>
+
+      {/* Actions */}
+      {showRejectInput ? (
+        <div
+          style={{
+            padding: "10px 16px",
+            borderTop: "1px solid var(--color-border)",
+            backgroundColor: "var(--color-bg-tertiary)",
+          }}
+        >
+          <textarea
+            style={{
+              width: "100%",
+              padding: "8px",
+              marginBottom: "8px",
+              backgroundColor: "var(--color-bg-secondary)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "4px",
+              color: "var(--color-text-primary)",
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+            placeholder="Reason for rejection (optional)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={2}
+          />
+          <div
+            style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}
+          >
+            <button
+              style={{
+                padding: "8px 20px",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                backgroundColor: "transparent",
+                color: "var(--color-text-muted)",
+                border: "1px solid var(--color-border)",
+              }}
+              onClick={() => {
+                setShowRejectInput(false);
+                setRejectReason("");
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              style={{
+                padding: "8px 20px",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                backgroundColor: "var(--color-error)",
+                color: "white",
+                border: "none",
+              }}
+              onClick={() => onReject(rejectReason || undefined)}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
+            padding: "10px 16px",
+            borderTop: "1px solid var(--color-border)",
+            backgroundColor: "var(--color-bg-tertiary)",
+          }}
+        >
+          <button
+            style={{
+              padding: "8px 20px",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: "pointer",
+              backgroundColor: "transparent",
+              color: "var(--color-error)",
+              border: "1px solid var(--color-error)",
+            }}
+            onClick={() => setShowRejectInput(true)}
+          >
+            Reject
+          </button>
+          <button
+            style={{
+              padding: "8px 20px",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: "pointer",
+              backgroundColor: "var(--color-success)",
+              color: "white",
+              border: "none",
+            }}
+            onClick={onApprove}
+          >
+            Approve Plan
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel() {
   const {
     messages,
@@ -344,11 +538,14 @@ export function ChatPanel() {
     statusText,
     messageQueue,
     promptHistory,
+    pendingPlan,
     sendMessage,
     cancelRequest,
     clearError,
     removeFromQueue,
     clearPromptHistory,
+    approvePlan,
+    rejectPlan,
   } = useChat();
 
   const [input, setInput] = useState("");
@@ -455,6 +652,15 @@ export function ChatPanel() {
               </span>
             </div>
           </div>
+        )}
+
+        {/* Plan review block - shows even while loading since agent waits for approval */}
+        {pendingPlan && (
+          <PlanReviewBlock
+            plan={pendingPlan}
+            onApprove={approvePlan}
+            onReject={rejectPlan}
+          />
         )}
 
         {/* Queued messages */}

@@ -4,6 +4,7 @@ mod types;
 
 pub use executor::ToolExecutor;
 pub use local::LocalExecutor;
+pub use local::PlanApproval;
 pub use local::SessionState;
 pub use types::ToolName;
 
@@ -23,11 +24,11 @@ mod descriptions {
     pub const NOTEBOOK_READ: &str = include_str!("descriptions/notebook_read.md");
     pub const NOTEBOOK_EDIT: &str = include_str!("descriptions/notebook_edit.md");
     pub const WEB_FETCH: &str = include_str!("descriptions/web_fetch.md");
-    pub const WEB_SEARCH: &str = include_str!("descriptions/web_search.md");
+    pub const SEARCH_WEB: &str = include_str!("descriptions/search_web.md");
     pub const TODO_READ: &str = include_str!("descriptions/todo_read.md");
     pub const TODO_WRITE: &str = include_str!("descriptions/todo_write.md");
-    pub const AGENT: &str = include_str!("descriptions/agent.md");
-    pub const EXIT_PLAN_MODE: &str = include_str!("descriptions/exit_plan_mode.md");
+    pub const DISPATCH_AGENT: &str = include_str!("descriptions/dispatch_agent.md");
+    pub const SUBMIT_PLAN: &str = include_str!("descriptions/submit_plan.md");
 }
 
 static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
@@ -264,8 +265,8 @@ static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
             }),
         },
         ToolDefinition {
-            name: "web_search".to_string(),
-            description: descriptions::WEB_SEARCH.to_string(),
+            name: "search_web".to_string(),
+            description: descriptions::SEARCH_WEB.to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -328,26 +329,27 @@ static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
             }),
         },
         ToolDefinition {
-            name: "agent".to_string(),
-            description: descriptions::AGENT.to_string(),
+            name: "dispatch_agent".to_string(),
+            description: descriptions::DISPATCH_AGENT.to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "description": {
+                    "task": {
                         "type": "string",
-                        "description": "Short task summary (3-5 words)"
+                        "description": "Detailed task for the sub-agent to complete"
                     },
-                    "prompt": {
-                        "type": "string",
-                        "description": "Detailed task instructions"
+                    "tools": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional list of tools to allow (default: read-only tools)"
                     }
                 },
-                "required": ["description", "prompt"]
+                "required": ["task"]
             }),
         },
         ToolDefinition {
-            name: "exit_plan_mode".to_string(),
-            description: descriptions::EXIT_PLAN_MODE.to_string(),
+            name: "submit_plan".to_string(),
+            description: descriptions::SUBMIT_PLAN.to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

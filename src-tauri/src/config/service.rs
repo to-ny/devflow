@@ -174,11 +174,13 @@ mod tests {
             execution: ExecutionConfig {
                 timeout_secs: 60,
                 max_tool_iterations: 50,
+                max_agent_depth: 3,
             },
             notifications: NotificationsConfig {
                 on_complete: vec![NotificationAction::Window],
                 on_error: vec![NotificationAction::Sound, NotificationAction::Window],
             },
+            search: SearchConfig::default(),
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
