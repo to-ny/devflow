@@ -3,11 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useApp } from "../context/AppContext";
 import { useLatest } from "../hooks/useLatest";
-import type { ProjectConfig, NotificationAction } from "../types/config";
 import type {
   ConfigChangedPayload,
+  NotificationAction,
+  ProjectConfig,
   ProviderInfo,
-} from "../types/generated/index";
+} from "../types/config";
 import "./SettingsPage.css";
 
 interface FormState {

@@ -261,4 +261,253 @@ provider = "anthropic"
 
         assert!(ConfigService::project_config_exists(temp_dir.path()));
     }
+
+    #[test]
+    fn test_save_creates_devflow_directory() {
+        let temp_dir = create_temp_dir();
+
+        let config = ProjectConfig {
+            agent: AgentConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                max_tokens: 8192,
+            },
+            prompts: PromptsConfig::default(),
+            execution: ExecutionConfig {
+                timeout_secs: 30,
+                max_tool_iterations: 50,
+                max_agent_depth: 3,
+            },
+            notifications: NotificationsConfig::default(),
+            search: SearchConfig::default(),
+        };
+
+        let devflow_dir = temp_dir.path().join(".devflow");
+        assert!(!devflow_dir.exists());
+
+        ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
+        assert!(devflow_dir.exists());
+    }
+
+    #[test]
+    fn test_overwrite_existing_config() {
+        let temp_dir = create_temp_dir();
+
+        let config1 = ProjectConfig {
+            agent: AgentConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                max_tokens: 8192,
+            },
+            prompts: PromptsConfig::default(),
+            execution: ExecutionConfig {
+                timeout_secs: 30,
+                max_tool_iterations: 50,
+                max_agent_depth: 3,
+            },
+            notifications: NotificationsConfig::default(),
+            search: SearchConfig::default(),
+        };
+
+        ConfigService::save_project_config(temp_dir.path(), &config1).unwrap();
+
+        let config2 = ProjectConfig {
+            agent: AgentConfig {
+                provider: "gemini".to_string(),
+                model: "gemini-2.0-flash".to_string(),
+                api_key_env: "GEMINI_API_KEY".to_string(),
+                max_tokens: 4096,
+            },
+            prompts: PromptsConfig::default(),
+            execution: ExecutionConfig {
+                timeout_secs: 60,
+                max_tool_iterations: 100,
+                max_agent_depth: 5,
+            },
+            notifications: NotificationsConfig::default(),
+            search: SearchConfig::default(),
+        };
+
+        ConfigService::save_project_config(temp_dir.path(), &config2).unwrap();
+
+        let loaded = ConfigService::load_project_config(temp_dir.path()).unwrap();
+        assert_eq!(loaded.agent.provider, "gemini");
+        assert_eq!(loaded.agent.model, "gemini-2.0-flash");
+        assert_eq!(loaded.execution.timeout_secs, 60);
+    }
+
+    #[test]
+    fn test_app_config_update_last_project() {
+        let temp_dir = create_temp_dir();
+        let service = ConfigService::with_app_data_dir(temp_dir.path().to_path_buf());
+
+        let config = AppConfig {
+            state: AppState {
+                last_project: Some("/first/project".to_string()),
+            },
+        };
+        service.save_app_config(&config).unwrap();
+
+        let updated_config = AppConfig {
+            state: AppState {
+                last_project: Some("/second/project".to_string()),
+            },
+        };
+        service.save_app_config(&updated_config).unwrap();
+
+        let loaded = service.load_app_config().unwrap();
+        assert_eq!(
+            loaded.state.last_project,
+            Some("/second/project".to_string())
+        );
+    }
+
+    #[test]
+    fn test_app_config_clear_last_project() {
+        let temp_dir = create_temp_dir();
+        let service = ConfigService::with_app_data_dir(temp_dir.path().to_path_buf());
+
+        let config = AppConfig {
+            state: AppState {
+                last_project: Some("/some/project".to_string()),
+            },
+        };
+        service.save_app_config(&config).unwrap();
+
+        let cleared_config = AppConfig {
+            state: AppState { last_project: None },
+        };
+        service.save_app_config(&cleared_config).unwrap();
+
+        let loaded = service.load_app_config().unwrap();
+        assert!(loaded.state.last_project.is_none());
+    }
+
+    #[test]
+    fn test_notification_actions_serialization() {
+        let temp_dir = create_temp_dir();
+
+        let config = ProjectConfig {
+            agent: AgentConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                max_tokens: 8192,
+            },
+            prompts: PromptsConfig::default(),
+            execution: ExecutionConfig {
+                timeout_secs: 30,
+                max_tool_iterations: 50,
+                max_agent_depth: 3,
+            },
+            notifications: NotificationsConfig {
+                on_complete: vec![NotificationAction::Sound, NotificationAction::Window],
+                on_error: vec![NotificationAction::Window],
+            },
+            search: SearchConfig::default(),
+        };
+
+        ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
+        let loaded = ConfigService::load_project_config(temp_dir.path()).unwrap();
+
+        assert_eq!(loaded.notifications.on_complete.len(), 2);
+        assert!(loaded
+            .notifications
+            .on_complete
+            .contains(&NotificationAction::Sound));
+        assert!(loaded
+            .notifications
+            .on_complete
+            .contains(&NotificationAction::Window));
+        assert_eq!(loaded.notifications.on_error.len(), 1);
+        assert!(loaded
+            .notifications
+            .on_error
+            .contains(&NotificationAction::Window));
+    }
+
+    #[test]
+    fn test_search_config_defaults() {
+        let temp_dir = create_temp_dir();
+        let config_dir = temp_dir.path().join(".devflow");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        let config_without_search = r#"
+[agent]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+max_tokens = 4096
+
+[execution]
+timeout_secs = 30
+max_tool_iterations = 50
+"#;
+
+        fs::write(config_dir.join("config.toml"), config_without_search).unwrap();
+
+        let loaded = ConfigService::load_project_config(temp_dir.path()).unwrap();
+        assert_eq!(loaded.search.provider, "duckduckgo");
+        assert_eq!(loaded.search.max_results, 10);
+    }
+
+    #[test]
+    fn test_max_agent_depth_default() {
+        let temp_dir = create_temp_dir();
+        let config_dir = temp_dir.path().join(".devflow");
+        fs::create_dir_all(&config_dir).unwrap();
+
+        let config_without_depth = r#"
+[agent]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+max_tokens = 4096
+
+[execution]
+timeout_secs = 30
+max_tool_iterations = 50
+"#;
+
+        fs::write(config_dir.join("config.toml"), config_without_depth).unwrap();
+
+        let loaded = ConfigService::load_project_config(temp_dir.path()).unwrap();
+        assert_eq!(loaded.execution.max_agent_depth, 3);
+    }
+
+    #[test]
+    fn test_config_toml_format() {
+        let temp_dir = create_temp_dir();
+
+        let config = ProjectConfig {
+            agent: AgentConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                max_tokens: 8192,
+            },
+            prompts: PromptsConfig {
+                pre: "System prompt".to_string(),
+                post: "".to_string(),
+            },
+            execution: ExecutionConfig {
+                timeout_secs: 30,
+                max_tool_iterations: 50,
+                max_agent_depth: 3,
+            },
+            notifications: NotificationsConfig::default(),
+            search: SearchConfig::default(),
+        };
+
+        ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
+
+        let config_path = temp_dir.path().join(".devflow").join("config.toml");
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("[agent]"));
+        assert!(content.contains("provider = \"anthropic\""));
+        assert!(content.contains("[execution]"));
+        assert!(content.contains("timeout_secs = 30"));
+    }
 }

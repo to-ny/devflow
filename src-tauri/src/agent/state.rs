@@ -134,4 +134,124 @@ mod tests {
         assert!(!state.config_stale);
         assert!(state.project_path.is_none());
     }
+
+    #[test]
+    fn test_default_state_is_not_running() {
+        let state = AgentState::new();
+        assert!(!state.is_running);
+    }
+
+    #[test]
+    fn test_start_run_sets_is_running() {
+        let mut state = AgentState::new();
+        assert!(!state.is_running);
+
+        let _token = state.start_run();
+        assert!(state.is_running);
+    }
+
+    #[test]
+    fn test_start_run_returns_cancel_token() {
+        let mut state = AgentState::new();
+        let token = state.start_run();
+        assert!(!token.is_cancelled());
+    }
+
+    #[test]
+    fn test_finish_run_clears_running_state() {
+        let mut state = AgentState::new();
+        let _token = state.start_run();
+        assert!(state.is_running);
+
+        state.finish_run();
+        assert!(!state.is_running);
+    }
+
+    #[test]
+    fn test_finish_run_clears_cancel_token() {
+        let mut state = AgentState::new();
+        let _token = state.start_run();
+        assert!(state.cancel_token.is_some());
+
+        state.finish_run();
+        assert!(state.cancel_token.is_none());
+    }
+
+    #[test]
+    fn test_cancel_sets_is_running_false() {
+        let mut state = AgentState::new();
+        let _token = state.start_run();
+        assert!(state.is_running);
+
+        state.cancel();
+        assert!(!state.is_running);
+    }
+
+    #[test]
+    fn test_cancel_triggers_cancellation_token() {
+        let mut state = AgentState::new();
+        let token = state.start_run();
+        assert!(!token.is_cancelled());
+
+        state.cancel();
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn test_cancel_when_not_running_is_safe() {
+        let mut state = AgentState::new();
+        assert!(!state.is_running);
+        state.cancel();
+        assert!(!state.is_running);
+    }
+
+    #[test]
+    fn test_get_adapter_returns_none_when_not_initialized() {
+        let state = AgentState::new();
+        assert!(state.get_adapter().is_none());
+    }
+
+    #[test]
+    fn test_clear_removes_adapter() {
+        let mut state = AgentState::new();
+        state.project_path = Some("/path".to_string());
+        state.clear();
+        assert!(state.adapter.is_none());
+    }
+
+    #[test]
+    fn test_clear_cancels_any_running_operation() {
+        let mut state = AgentState::new();
+        let token = state.start_run();
+        assert!(state.is_running);
+
+        state.clear();
+
+        assert!(!state.is_running);
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn test_default_trait_creates_new_state() {
+        let state = AgentState::default();
+        assert!(!state.is_running);
+        assert!(state.adapter.is_none());
+        assert!(state.project_path.is_none());
+    }
+
+    #[test]
+    fn test_multiple_start_run_calls_create_new_tokens() {
+        let mut state = AgentState::new();
+
+        let token1 = state.start_run();
+        state.finish_run();
+
+        let token2 = state.start_run();
+        assert!(!token1.is_cancelled());
+        assert!(!token2.is_cancelled());
+
+        state.cancel();
+        assert!(!token1.is_cancelled());
+        assert!(token2.is_cancelled());
+    }
 }
