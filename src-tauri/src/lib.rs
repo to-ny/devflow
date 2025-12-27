@@ -2,9 +2,8 @@ pub mod agent;
 pub mod config;
 pub mod git;
 mod menu;
-pub mod watcher;
 
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 
 use tauri::{Listener, Manager};
 
@@ -20,8 +19,6 @@ use config::commands::{
 use git::commands::{
     git_get_changed_files, git_get_file_diff_with_status, git_is_repository, git_stage_all,
 };
-use watcher::commands::{watcher_start, watcher_stop};
-use watcher::WatcherState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,7 +33,6 @@ pub fn run() {
                 ))
                 .build(),
         )
-        .manage(WatcherState(Mutex::new(None)))
         .manage(RwLock::new(AgentState::new()))
         .setup(|app| {
             menu::setup(app)?;
@@ -78,8 +74,6 @@ pub fn run() {
             config_load_project,
             config_get_providers,
             config_save_project,
-            watcher_start,
-            watcher_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

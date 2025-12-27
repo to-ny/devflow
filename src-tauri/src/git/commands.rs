@@ -1,8 +1,6 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use log::info;
-
 use super::highlighter::Highlighter;
 use super::service::GitService;
 use super::types::{ChangedFile, FileDiff, FileStatus, LineKind, RepositoryCheckResult};
@@ -51,17 +49,8 @@ pub fn git_is_repository(path: String) -> RepositoryCheckResult {
 
 #[tauri::command]
 pub fn git_get_changed_files(project_path: String) -> Result<Vec<ChangedFile>, String> {
-    info!("git_get_changed_files: path={}", project_path);
-    let service = GitService::open(Path::new(&project_path)).map_err(|e| {
-        info!("git_get_changed_files: failed to open: {}", e);
-        e.to_string()
-    })?;
-    let files = service.get_changed_files().map_err(|e| {
-        info!("git_get_changed_files: failed to get files: {}", e);
-        e.to_string()
-    })?;
-    info!("git_get_changed_files: returning {} files", files.len());
-    Ok(files)
+    let service = GitService::open(Path::new(&project_path)).map_err(|e| e.to_string())?;
+    service.get_changed_files().map_err(|e| e.to_string())
 }
 
 /// Get file diff with status passed from frontend (avoids redundant git status call)
@@ -72,10 +61,6 @@ pub fn git_get_file_diff_with_status(
     index_status: Option<FileStatus>,
     worktree_status: Option<FileStatus>,
 ) -> Result<FileDiff, String> {
-    info!(
-        "git_get_file_diff_with_status: path={}, index={:?}, worktree={:?}",
-        file_path, index_status, worktree_status
-    );
     let service = GitService::open(Path::new(&project_path)).map_err(|e| e.to_string())?;
     let diff = service
         .get_file_diff_with_status(&file_path, index_status, worktree_status)

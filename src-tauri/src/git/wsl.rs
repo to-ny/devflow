@@ -9,9 +9,6 @@ use std::process::{Command, Output};
 use std::os::windows::process::CommandExt;
 
 #[cfg(windows)]
-use log::info;
-
-#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone)]
@@ -69,11 +66,6 @@ pub fn parse_wsl_path(_path: &Path) -> Option<WslPath> {
 
 #[cfg(windows)]
 pub fn run_git_via_wsl(wsl_path: &WslPath, args: &[&str]) -> std::io::Result<Output> {
-    info!(
-        "run_git_via_wsl: distro={}, path={}, args={:?}",
-        wsl_path.distro, wsl_path.linux_path, args
-    );
-
     let mut cmd = Command::new("wsl.exe");
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.args(["-d", &wsl_path.distro, "git", "-C", &wsl_path.linux_path]);

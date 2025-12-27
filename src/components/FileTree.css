@@ -55,13 +55,13 @@
   text-align: center;
 }
 
-.file-list {
+.file-tree-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.file-item {
+.tree-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -69,17 +69,46 @@
   cursor: pointer;
   border-left: 3px solid transparent;
   transition: background-color 0.15s;
+  outline: none;
 }
 
-.file-item:hover {
+.tree-item:hover {
   background: var(--color-bg-tertiary);
 }
 
-.file-item.selected {
+.tree-item.selected {
   background: var(--color-bg-tertiary);
   border-left-color: var(--color-accent);
 }
 
+.tree-item.focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.tree-item.focused:not(.selected) {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Folder styling */
+.folder-icon {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.folder-name {
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* File styling */
 .file-status {
   font-family: monospace;
   font-size: 12px;
@@ -119,10 +148,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.file-path {
-  display: none;
 }
 
 .comment-badge {

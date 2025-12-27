@@ -79,8 +79,9 @@ describe("FileTree", () => {
 
       render(<FileTree />);
 
-      expect(screen.getByText("main.ts")).toBeInTheDocument();
-      expect(screen.getByText("src/main.ts")).toBeInTheDocument();
+      // Tree view shows folder and file separately
+      expect(screen.getByText("src")).toBeInTheDocument(); // folder
+      expect(screen.getByText("main.ts")).toBeInTheDocument(); // file
     });
 
     it("renders multiple files", () => {
@@ -232,7 +233,7 @@ describe("FileTree", () => {
       expect(fileItemB).not.toHaveClass("selected");
     });
 
-    it("sets file path as title attribute", () => {
+    it("sets file path as data-path attribute", () => {
       mockAppState.changedFiles = [
         {
           path: "src/deep/path/file.ts",
@@ -243,8 +244,9 @@ describe("FileTree", () => {
 
       render(<FileTree />);
 
-      const fileItem = screen.getByTitle("src/deep/path/file.ts");
-      expect(fileItem).toBeInTheDocument();
+      // Tree items use data-path attribute for the full path
+      const fileItem = screen.getByText("file.ts").closest("li");
+      expect(fileItem).toHaveAttribute("data-path", "src/deep/path/file.ts");
     });
   });
 

@@ -1,7 +1,5 @@
 //! Unified diff parser for `git diff` output.
 
-use log::warn;
-
 use super::types::{DiffHunk, DiffLine, LineKind};
 
 pub fn parse_unified_diff(diff_output: &str) -> Vec<DiffHunk> {
@@ -36,8 +34,6 @@ pub fn parse_unified_diff(diff_output: &str) -> Vec<DiffHunk> {
                     new_lines,
                     lines: Vec::new(),
                 });
-            } else {
-                warn!("Failed to parse hunk header: {}", line);
             }
             continue;
         }
@@ -49,13 +45,7 @@ pub fn parse_unified_diff(diff_output: &str) -> Vec<DiffHunk> {
                     '-' => (LineKind::Deletion, &line[1..]),
                     ' ' => (LineKind::Context, &line[1..]),
                     '\\' => continue, // "\ No newline at end of file"
-                    _ => {
-                        warn!(
-                            "Unexpected diff line format (treating as context): {}",
-                            line
-                        );
-                        (LineKind::Context, line)
-                    }
+                    _ => (LineKind::Context, line),
                 };
 
                 let (old_no, new_no) = match kind {

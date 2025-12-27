@@ -28,9 +28,20 @@ interface CommentsContextValue extends CommentsState {
   setGlobalComment: (text: string) => void;
   addLineComment: (comment: Omit<LineComment, "id">) => void;
   updateLineComment: (id: string, text: string) => void;
+  updateLineCommentWithRange: (
+    id: string,
+    text: string,
+    lines: LineRange,
+    selectedCode: string,
+  ) => void;
   removeLineComment: (id: string) => void;
   getCommentsForFile: (file: string) => LineComment[];
   getCommentForLine: (file: string, lineNo: number) => LineComment | undefined;
+  getOverlappingComment: (
+    file: string,
+    start: number,
+    end: number,
+  ) => LineComment | undefined;
   getCommentCountForFile: (file: string) => number;
   clearAllComments: () => void;
   hasComments: () => boolean;
@@ -72,6 +83,18 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const updateLineCommentWithRange = useCallback(
+    (id: string, text: string, lines: LineRange, selectedCode: string) => {
+      setState((prev) => ({
+        ...prev,
+        lineComments: prev.lineComments.map((c) =>
+          c.id === id ? { ...c, text, lines, selectedCode } : c,
+        ),
+      }));
+    },
+    [],
+  );
+
   const removeLineComment = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
@@ -91,6 +114,19 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
       return state.lineComments.find(
         (c) =>
           c.file === file && lineNo >= c.lines.start && lineNo <= c.lines.end,
+      );
+    },
+    [state.lineComments],
+  );
+
+  const getOverlappingComment = useCallback(
+    (file: string, start: number, end: number) => {
+      return state.lineComments.find(
+        (c) =>
+          c.file === file &&
+          // Check if ranges overlap
+          start <= c.lines.end &&
+          end >= c.lines.start,
       );
     },
     [state.lineComments],
@@ -118,9 +154,11 @@ export function CommentsProvider({ children }: { children: ReactNode }) {
         setGlobalComment,
         addLineComment,
         updateLineComment,
+        updateLineCommentWithRange,
         removeLineComment,
         getCommentsForFile,
         getCommentForLine,
+        getOverlappingComment,
         getCommentCountForFile,
         clearAllComments,
         hasComments,

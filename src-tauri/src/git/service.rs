@@ -4,8 +4,6 @@ use std::process::{Command, Output};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use log::info;
-
 use super::diff_parser::parse_unified_diff;
 use super::error::GitError;
 use super::types::{
@@ -37,19 +35,11 @@ impl GitService {
         let git_dir = path.join(".git");
         if git_dir.exists() {
             let wsl_path = if is_wsl_path(path) {
-                let parsed = parse_wsl_path(path);
-                if let Some(ref wsl) = parsed {
-                    info!(
-                        "GitService::open: WSL path detected, distro={}, linux_path={}",
-                        wsl.distro, wsl.linux_path
-                    );
-                }
-                parsed
+                parse_wsl_path(path)
             } else {
                 None
             };
 
-            info!("GitService::open: {}", path.display());
             Ok(Self {
                 workdir: path.to_path_buf(),
                 wsl_path,
@@ -85,12 +75,6 @@ impl GitService {
     }
 
     pub fn get_changed_files(&self) -> Result<Vec<ChangedFile>, GitError> {
-        info!(
-            "get_changed_files: workdir={}, wsl={}",
-            self.workdir.display(),
-            self.wsl_path.is_some()
-        );
-
         let output = self.run_git(&["status", "--porcelain", "-uall"])?;
 
         if !output.status.success() {
@@ -131,7 +115,6 @@ impl GitService {
             });
         }
 
-        info!("get_changed_files: found {} files", files.len());
         Ok(files)
     }
 
@@ -142,11 +125,6 @@ impl GitService {
         index_status: Option<FileStatus>,
         worktree_status: Option<FileStatus>,
     ) -> Result<FileDiff, GitError> {
-        info!(
-            "get_file_diff_with_status: file={}, index={:?}, worktree={:?}",
-            file_path, index_status, worktree_status
-        );
-
         let display_status = worktree_status
             .or(index_status)
             .unwrap_or(FileStatus::Modified);
@@ -218,12 +196,6 @@ impl GitService {
     }
 
     pub fn stage_all(&self) -> Result<(), GitError> {
-        info!(
-            "stage_all: workdir={}, wsl={}",
-            self.workdir.display(),
-            self.wsl_path.is_some()
-        );
-
         let output = self.run_git(&["add", "--all"])?;
 
         if !output.status.success() {

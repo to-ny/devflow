@@ -25,9 +25,14 @@ export function CommentEditor({
 }: CommentEditorProps) {
   const [text, setText] = useState(existingComment?.text ?? "");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { addLineComment, updateLineComment, removeLineComment } =
+  const { addLineComment, updateLineCommentWithRange, removeLineComment } =
     useComments();
   const isEditing = !!existingComment;
+  // Check if line range changed (overlapping comment with different selection)
+  const rangeChanged =
+    existingComment &&
+    (lines.start !== existingComment.lines.start ||
+      lines.end !== existingComment.lines.end);
 
   useEffect(() => {
     textareaRef.current?.focus({ preventScroll: true });
@@ -36,7 +41,13 @@ export function CommentEditor({
   const handleSubmit = () => {
     if (text.trim()) {
       if (isEditing) {
-        updateLineComment(existingComment.id, text.trim());
+        // Update both text and line range (handles overlap case)
+        updateLineCommentWithRange(
+          existingComment.id,
+          text.trim(),
+          lines,
+          selectedCode,
+        );
       } else {
         addLineComment({ file, lines, selectedCode, text: text.trim() });
       }
@@ -64,6 +75,12 @@ export function CommentEditor({
     lines.start === lines.end
       ? `Line ${lines.start}`
       : `Lines ${lines.start}-${lines.end}`;
+
+  const buttonLabel = isEditing
+    ? rangeChanged
+      ? "Update & Move"
+      : "Update"
+    : "Add Comment";
 
   return (
     <div
@@ -99,7 +116,7 @@ export function CommentEditor({
           onClick={handleSubmit}
           disabled={!text.trim()}
         >
-          {isEditing ? "Update" : "Add Comment"}
+          {buttonLabel}
         </button>
       </div>
     </div>

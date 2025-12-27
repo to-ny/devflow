@@ -13,7 +13,7 @@ import "./DiffView.css";
 
 export function DiffView() {
   const { selectedFile, projectPath, getSelectedFileInfo } = useApp();
-  const { getCommentsForFile, getCommentForLine } = useComments();
+  const { getCommentsForFile, getOverlappingComment } = useComments();
   const [diff, setDiff] = useState<FileDiff | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,17 +66,18 @@ export function DiffView() {
       const start = Math.min(selectionStart, selectionEnd ?? selectionStart);
       const end = Math.max(selectionStart, selectionEnd ?? selectionStart);
 
-      const existingComment = getCommentForLine(selectedFile, start);
-      const selectedCode =
-        existingComment?.selectedCode ??
-        diff.hunks
-          .flatMap((h) => h.lines)
-          .filter((l) => {
-            const lineNo = l.new_line_no ?? l.old_line_no;
-            return lineNo !== null && lineNo >= start && lineNo <= end;
-          })
-          .map((l) => l.content)
-          .join("\n");
+      // Check if the new selection overlaps with any existing comment
+      const existingComment = getOverlappingComment(selectedFile, start, end);
+
+      // Always use the new selection's code
+      const selectedCode = diff.hunks
+        .flatMap((h) => h.lines)
+        .filter((l) => {
+          const lineNo = l.new_line_no ?? l.old_line_no;
+          return lineNo !== null && lineNo >= start && lineNo <= end;
+        })
+        .map((l) => l.content)
+        .join("\n");
 
       const { x, y } = mousePositionRef.current;
       const editorWidth = 320;
@@ -93,7 +94,8 @@ export function DiffView() {
       );
 
       setCommentEditor({
-        lines: existingComment?.lines ?? { start, end },
+        // Use the new selection range, not the existing comment's range
+        lines: { start, end },
         selectedCode,
         position: { top, left },
         existingComment,
@@ -105,7 +107,7 @@ export function DiffView() {
     selectionEnd,
     diff,
     selectedFile,
-    getCommentForLine,
+    getOverlappingComment,
   ]);
 
   const handleCloseEditor = useCallback(() => {

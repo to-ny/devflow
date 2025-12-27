@@ -65,7 +65,7 @@
   --bottom-nav-height: 60px;
 }
 
-/* Light theme support (for future use) */
+/* Light theme support */
 @media (prefers-color-scheme: light) {
   :root {
     --color-bg-primary: #ffffff;
@@ -77,12 +77,21 @@
     --color-text-secondary: #333;
     --color-text-muted: #666;
     --color-text-placeholder: #999;
-  }
-}
 
-/* Force dark mode for now until light theme is properly designed */
-:root {
-  color-scheme: dark;
+    /* Git status colors - higher contrast for light theme */
+    --color-status-added: #1a7f64;
+    --color-status-modified: #856404;
+    --color-status-deleted: #c41e3a;
+    --color-status-renamed: #0969da;
+    --color-status-copied: #0969da;
+    --color-status-untracked: #4d7c0f;
+
+    /* Diff colors - stronger backgrounds and high-contrast text for light theme */
+    --color-diff-addition-bg: rgba(34, 197, 94, 0.2);
+    --color-diff-addition-text: #166534;
+    --color-diff-deletion-bg: rgba(239, 68, 68, 0.2);
+    --color-diff-deletion-text: #991b1b;
+  }
 }
 
 * {

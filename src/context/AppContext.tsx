@@ -53,12 +53,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedFile: null,
   });
 
-  // Track if component is mounted to avoid state updates after unmount
   const isMounted = useRef(true);
-  // Use ref for projectPath so refreshFiles can be properly memoized
   const projectPathRef = useRef<string | null>(null);
 
-  // Keep ref in sync with state
   useEffect(() => {
     projectPathRef.current = state.projectPath;
   }, [state.projectPath]);
@@ -94,7 +91,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       updateWindowTitle(projectName);
       invoke("config_set_last_project", { projectPath }).catch(() => {});
-      invoke("watcher_start", { projectPath }).catch(() => {});
     },
     [updateWindowTitle],
   );
@@ -143,8 +139,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setProjectOpen]);
 
   const closeProject = useCallback(() => {
-    invoke("watcher_stop", {}).catch(() => {});
-
     setState({
       projectPath: null,
       projectName: null,
@@ -262,16 +256,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const unlistenClose = await listen("menu-close-project", () => {
           closeProject();
         });
-        const unlistenFilesChanged = await listen("files-changed", () => {
-          refreshFiles();
-        });
 
         if (cancelled) {
           unlistenOpen();
           unlistenClose();
-          unlistenFilesChanged();
         } else {
-          unlisteners.push(unlistenOpen, unlistenClose, unlistenFilesChanged);
+          unlisteners.push(unlistenOpen, unlistenClose);
         }
       } catch {
         // Ignored
@@ -284,7 +274,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unlisteners.forEach((fn) => fn());
     };
-  }, [openProject, closeProject, refreshFiles]);
+  }, [openProject, closeProject]);
+
+  useEffect(() => {
+    let timeoutId: number;
+    const handleFocus = () => {
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        if (projectPathRef.current) {
+          refreshFiles();
+        }
+      }, 150);
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refreshFiles]);
 
   return (
     <AppContext.Provider

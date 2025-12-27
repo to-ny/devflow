@@ -113,6 +113,21 @@
   flex: 1;
   overflow: auto;
   position: relative;
+  min-height: 0;
+}
+
+/* Line number gutter background that extends full height */
+.diff-view-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 101px; /* 50px + 50px + 1px border */
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .diff-view-empty,
@@ -131,6 +146,8 @@
 
 .diff-hunk {
   margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
 }
 
 .hunk-header {
@@ -151,6 +168,7 @@
 
 .diff-line {
   display: flex;
+  align-items: flex-start;
   min-height: 20px;
 }
 
@@ -175,6 +193,8 @@
   background: var(--color-bg-secondary);
   user-select: none;
   border-right: 1px solid var(--color-border);
+  align-self: stretch;
+  line-height: 1.5;
 }
 
 .line-number.old {
@@ -192,6 +212,8 @@
   text-align: center;
   color: var(--color-text-secondary);
   user-select: none;
+  align-self: stretch;
+  line-height: 1.5;
 }
 
 .diff-line.addition .line-marker {
@@ -205,8 +227,9 @@
 .line-content {
   flex: 1;
   padding: 0 16px 0 8px;
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
   color: var(--color-text-primary);
 }
 
@@ -216,6 +239,20 @@
 
 .diff-line.deletion .line-content {
   color: var(--color-diff-deletion-text);
+}
+
+/* Override syntax highlighting in light theme for readability.
+   !important is required because syntect generates inline styles. */
+@media (prefers-color-scheme: light) {
+  .diff-line.addition .line-content,
+  .diff-line.addition .line-content span {
+    color: var(--color-diff-addition-text) !important;
+  }
+
+  .diff-line.deletion .line-content,
+  .diff-line.deletion .line-content span {
+    color: var(--color-diff-deletion-text) !important;
+  }
 }
 
 /* Line selection */
