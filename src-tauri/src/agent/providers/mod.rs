@@ -1,7 +1,9 @@
 pub mod anthropic;
+pub mod compaction;
 pub mod gemini;
 pub mod headless;
 
+// Compaction utilities are used internally by anthropic and gemini adapters via `super::compaction::`
 pub use headless::{run_headless_loop, HeadlessContext};
 
 use std::path::Path;
@@ -22,6 +24,7 @@ pub use gemini::GeminiAdapter;
 use tokio_util::sync::CancellationToken;
 
 pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../default_system_prompt.md");
+pub const DEFAULT_EXTRACTION_PROMPT: &str = include_str!("../extraction_prompt.md");
 
 /// Context for streaming responses, reducing parameter passing.
 pub(crate) struct StreamContext<'a> {
@@ -311,6 +314,7 @@ pub fn create_provider_adapter(
                 project_config.execution,
                 project_path.to_path_buf(),
                 DEFAULT_SYSTEM_PROMPT,
+                project_config.extraction_prompt,
             )?;
             Ok(Arc::new(adapter))
         }
@@ -321,6 +325,7 @@ pub fn create_provider_adapter(
                 project_config.execution,
                 project_path.to_path_buf(),
                 DEFAULT_SYSTEM_PROMPT,
+                project_config.extraction_prompt,
             )?;
             Ok(Arc::new(adapter))
         }

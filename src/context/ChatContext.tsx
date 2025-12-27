@@ -13,6 +13,7 @@ import type {
   ChatMessage,
   ChatContentBlock,
   AgentChunkPayload,
+  AgentCompactionPayload,
   AgentCompletePayload,
   AgentErrorPayload,
   AgentStatusPayload,
@@ -22,6 +23,7 @@ import type {
   ToolStartPayload,
   ToolEndPayload,
   ContentBlockStartPayload,
+  AgentCompactionWarningPayload,
 } from "../types/agent";
 import { useSession } from "./SessionContext";
 
@@ -47,6 +49,18 @@ export interface QueuedMessage {
   status: "pending" | "sending" | "sent";
 }
 
+export interface CompactionInfo {
+  originalTokens: number;
+  compactedTokens: number;
+  factsCount: number;
+  timestamp: number;
+}
+
+export interface CompactionWarning {
+  message: string;
+  timestamp: number;
+}
+
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -58,6 +72,8 @@ interface ChatState {
   messageQueue: QueuedMessage[];
   promptHistory: string[];
   pendingPlan: string | null;
+  lastCompaction: CompactionInfo | null;
+  compactionWarning: CompactionWarning | null;
 }
 
 interface ChatContextValue extends ChatState {
@@ -71,6 +87,7 @@ interface ChatContextValue extends ChatState {
   clearPromptHistory: () => void;
   approvePlan: () => Promise<void>;
   rejectPlan: (reason?: string) => Promise<void>;
+  clearCompactionWarning: () => void;
 }
 
 interface ChatProviderProps {
@@ -170,6 +187,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     messageQueue: [],
     promptHistory: loadPromptHistory(),
     ...CLEAR_PENDING_PLAN,
+    lastCompaction: null,
+    compactionWarning: null,
   }));
 
   const isMounted = useRef(true);
@@ -373,6 +392,10 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
+  }, []);
+
+  const clearCompactionWarning = useCallback(() => {
+    setState((prev) => ({ ...prev, compactionWarning: null }));
   }, []);
 
   const addToQueue = useCallback((content: string): string => {
@@ -655,6 +678,37 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         },
       );
 
+      const unlistenCompaction = await listen<AgentCompactionPayload>(
+        "agent-compaction",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => ({
+            ...prev,
+            lastCompaction: {
+              originalTokens: event.payload.original_tokens,
+              compactedTokens: event.payload.compacted_tokens,
+              factsCount: event.payload.facts_count,
+              timestamp: Date.now(),
+            },
+          }));
+        },
+      );
+
+      const unlistenCompactionWarning =
+        await listen<AgentCompactionWarningPayload>(
+          "agent-compaction-warning",
+          (event) => {
+            if (cancelled || !isMounted.current) return;
+            setState((prev) => ({
+              ...prev,
+              compactionWarning: {
+                message: event.payload.message,
+                timestamp: Date.now(),
+              },
+            }));
+          },
+        );
+
       if (cancelled) {
         unlistenBlockStart();
         unlistenChunk();
@@ -665,6 +719,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenToolStart();
         unlistenToolEnd();
         unlistenPlanReady();
+        unlistenCompaction();
+        unlistenCompactionWarning();
       } else {
         unlisteners.push(
           unlistenBlockStart,
@@ -676,6 +732,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           unlistenToolStart,
           unlistenToolEnd,
           unlistenPlanReady,
+          unlistenCompaction,
+          unlistenCompactionWarning,
         );
       }
     }
@@ -702,6 +760,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         clearPromptHistory,
         approvePlan,
         rejectPlan,
+        clearCompactionWarning,
       }}
     >
       {children}

@@ -4,10 +4,11 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import type { ProjectConfig } from "../../types/config";
 import { isPresent } from "../../utils/nullish";
 
-type PromptType = "system" | "pre" | "post" | "agents-md";
+type PromptType = "system" | "extraction" | "pre" | "post" | "agents-md";
 
 const PROMPT_OPTIONS: { id: PromptType; label: string }[] = [
   { id: "system", label: "System Prompt" },
+  { id: "extraction", label: "Extraction Prompt" },
   { id: "pre", label: "Pre-prompt" },
   { id: "post", label: "Post-prompt" },
   { id: "agents-md", label: "AGENTS.md" },
@@ -16,9 +17,12 @@ const PROMPT_OPTIONS: { id: PromptType; label: string }[] = [
 interface PromptsSectionProps {
   config: ProjectConfig;
   defaultSystemPrompt: string;
+  defaultExtractionPrompt: string;
   agentsMd: string | null;
   onUpdateSystemPrompt: (value: string) => void;
   onResetSystemPrompt: () => void;
+  onUpdateExtractionPrompt: (value: string) => void;
+  onResetExtractionPrompt: () => void;
   onUpdatePrePostPrompt: (field: "pre" | "post", value: string) => void;
   onResetPrePostPrompt: (field: "pre" | "post") => void;
   onSetAgentsMd: (value: string | null) => void;
@@ -27,9 +31,12 @@ interface PromptsSectionProps {
 export function PromptsSection({
   config,
   defaultSystemPrompt,
+  defaultExtractionPrompt,
   agentsMd,
   onUpdateSystemPrompt,
   onResetSystemPrompt,
+  onUpdateExtractionPrompt,
+  onResetExtractionPrompt,
   onUpdatePrePostPrompt,
   onResetPrePostPrompt,
   onSetAgentsMd,
@@ -40,6 +47,9 @@ export function PromptsSection({
     if (type === "system") {
       return config.system_prompt ?? defaultSystemPrompt;
     }
+    if (type === "extraction") {
+      return config.extraction_prompt ?? defaultExtractionPrompt;
+    }
     if (type === "agents-md") {
       return agentsMd || "";
     }
@@ -49,6 +59,7 @@ export function PromptsSection({
   const isPromptCustom = (type: PromptType): boolean => {
     if (type === "agents-md") return false;
     if (type === "system") return isPresent(config.system_prompt);
+    if (type === "extraction") return isPresent(config.extraction_prompt);
     return (config.prompts[type] || "").length > 0;
   };
 
@@ -59,6 +70,8 @@ export function PromptsSection({
   const handlePromptChange = (type: PromptType, value: string) => {
     if (type === "system") {
       onUpdateSystemPrompt(value);
+    } else if (type === "extraction") {
+      onUpdateExtractionPrompt(value);
     } else if (type === "agents-md") {
       onSetAgentsMd(value);
     } else {
@@ -69,6 +82,8 @@ export function PromptsSection({
   const handlePromptReset = (type: PromptType) => {
     if (type === "system") {
       onResetSystemPrompt();
+    } else if (type === "extraction") {
+      onResetExtractionPrompt();
     } else if (type !== "agents-md") {
       onResetPrePostPrompt(type);
     }
@@ -119,11 +134,13 @@ export function PromptsSection({
           placeholder={
             selectedPrompt === "system"
               ? "System instructions for the AI..."
-              : selectedPrompt === "pre"
-                ? "Instructions prepended to each request..."
-                : selectedPrompt === "post"
-                  ? "Instructions appended to each request..."
-                  : "# Project Memory\n\nAdd project-specific context here..."
+              : selectedPrompt === "extraction"
+                ? "Prompt for extracting key facts during context compaction..."
+                : selectedPrompt === "pre"
+                  ? "Instructions prepended to each request..."
+                  : selectedPrompt === "post"
+                    ? "Instructions appended to each request..."
+                    : "# Project Memory\n\nAdd project-specific context here..."
           }
         />
       </div>

@@ -22,8 +22,9 @@ use crate::agent::usage::{SessionUsageTracker, UsageSource};
 use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
 use super::{
-    build_system_prompt, check_iteration_limit, create_executor, emit_status, emit_usage,
-    execute_tool_calls,
+    build_system_prompt, check_iteration_limit,
+    compaction::{format_compacted_context, get_context_limit, maybe_compact, CompactionContext},
+    create_executor, emit_status, emit_usage, execute_tool_calls,
     headless::{
         HeadlessResponse, HeadlessStreamer, ToolCall as HeadlessToolCall,
         ToolResult as HeadlessToolResult,
@@ -46,6 +47,8 @@ pub struct GeminiAdapter {
     api_key: String,
     project_path: PathBuf,
     app_system_prompt: &'static str,
+    context_limit: u32,
+    extraction_prompt: Option<String>,
 }
 
 impl GeminiAdapter {
@@ -55,9 +58,12 @@ impl GeminiAdapter {
         execution: ExecutionConfig,
         project_path: PathBuf,
         app_system_prompt: &'static str,
+        extraction_prompt: Option<String>,
     ) -> Result<Self, AgentError> {
         let api_key = env::var(&config.api_key_env)
             .map_err(|_| AgentError::MissingApiKey(config.api_key_env.clone()))?;
+
+        let context_limit = get_context_limit(config.context_limit);
 
         Ok(Self {
             client: Client::new(),
@@ -67,6 +73,8 @@ impl GeminiAdapter {
             api_key,
             project_path,
             app_system_prompt,
+            context_limit,
+            extraction_prompt,
         })
     }
 
@@ -372,6 +380,74 @@ impl GeminiAdapter {
         }
     }
 
+    async fn call_extraction_api(
+        &self,
+        prompt: String,
+        cancel_token: &CancellationToken,
+    ) -> Result<String, AgentError> {
+        if cancel_token.is_cancelled() {
+            return Err(AgentError::Cancelled);
+        }
+
+        let system_instruction = GeminiSystemInstruction {
+            parts: vec![GeminiPart::Text {
+                text: "You are a precise assistant that extracts and summarizes information. Always respond with valid JSON.".to_string(),
+            }],
+        };
+
+        let request = GeminiRequest {
+            contents: vec![GeminiContent {
+                role: "user".to_string(),
+                parts: vec![GeminiPart::Text { text: prompt }],
+            }],
+            system_instruction: Some(system_instruction),
+            tools: None,
+            generation_config: Some(GenerationConfig {
+                max_output_tokens: Some(2048),
+            }),
+        };
+
+        // Use non-streaming endpoint
+        let url = format!(
+            "{}/{}:generateContent?key={}",
+            API_BASE_URL, self.config.model, self.api_key
+        );
+
+        let response = self
+            .client
+            .post(&url)
+            .header("content-type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentError::ApiError(format!(
+                "Extraction failed: {}: {}",
+                status, body
+            )));
+        }
+
+        // Parse the non-streaming response
+        let body = response.text().await?;
+        let json: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse response: {}", e)))?;
+
+        // Extract text from the Gemini response
+        let text = json["candidates"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|candidate| candidate["content"]["parts"].as_array())
+            .and_then(|parts| parts.first())
+            .and_then(|part| part["text"].as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok(text)
+    }
+
     fn build_tools_from_definitions(&self, tools: &[ToolDefinition]) -> Vec<GeminiTool> {
         let declarations: Vec<FunctionDeclaration> =
             tools.iter().map(FunctionDeclaration::from).collect();
@@ -619,10 +695,8 @@ impl ProviderAdapter for GeminiAdapter {
         ctx: ExecutionContext,
         app_handle: AppHandle,
     ) -> Result<(), AgentError> {
-        let gemini_contents: Vec<GeminiContent> =
-            messages.iter().map(GeminiContent::from).collect();
-
-        let system = build_system_prompt(
+        // Build system prompt first
+        let base_system = build_system_prompt(
             self.app_system_prompt,
             &self.prompts,
             system_prompt,
@@ -633,10 +707,45 @@ impl ProviderAdapter for GeminiAdapter {
 
         emit_status(&app_handle, AgentStatus::Sending, None);
 
+        // Check if compaction is needed
+        let compaction_ctx = CompactionContext {
+            context_limit: self.context_limit,
+            extraction_prompt: self.extraction_prompt.as_deref(),
+            session: &ctx.session,
+            app_handle: &app_handle,
+        };
+
+        let compaction_result =
+            maybe_compact(&messages, Some(&base_system), &compaction_ctx, |prompt| {
+                self.call_extraction_api(prompt, &ctx.cancel_token)
+            })
+            .await?;
+
+        // Prepare messages and system prompt based on compaction result
+        let (final_messages, final_system) = match compaction_result {
+            Some(result) => {
+                let system_with_context = format!("{}\n\n{}", base_system, result.compacted_text);
+                (result.preserved_messages, system_with_context)
+            }
+            None => {
+                let existing = ctx.session.get_compacted().await;
+                if existing.summary.is_some() || !existing.facts.is_empty() {
+                    let compacted_text = format_compacted_context(&existing);
+                    let system_with_context = format!("{}\n\n{}", base_system, compacted_text);
+                    (messages.clone(), system_with_context)
+                } else {
+                    (messages.clone(), base_system)
+                }
+            }
+        };
+
+        let gemini_contents: Vec<GeminiContent> =
+            final_messages.iter().map(GeminiContent::from).collect();
+
         let result = self
             .execute_tool_loop(
                 gemini_contents,
-                Some(system),
+                Some(final_system),
                 ctx.session,
                 &app_handle,
                 &ctx.cancel_token,

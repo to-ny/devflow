@@ -13,14 +13,18 @@ export type { RepositoryCheckResult } from "./RepositoryCheckResult";
 // Agent types
 export type { AgentCancelledPayload } from "./AgentCancelledPayload";
 export type { AgentChunkPayload } from "./AgentChunkPayload";
+export type { AgentCompactionPayload } from "./AgentCompactionPayload";
+export type { AgentCompactionWarningPayload } from "./AgentCompactionWarningPayload";
 export type { AgentCompletePayload } from "./AgentCompletePayload";
 export type { AgentErrorPayload } from "./AgentErrorPayload";
 export type { AgentStatus } from "./AgentStatus";
 export type { AgentStatusPayload } from "./AgentStatusPayload";
 export type { ChatContentBlock } from "./ChatContentBlock";
 export type { ChatMessage } from "./ChatMessage";
+export type { CompactedFact } from "./CompactedFact";
 export type { ContentBlockStartPayload } from "./ContentBlockStartPayload";
 export type { ContentBlockType } from "./ContentBlockType";
+export type { FactCategory } from "./FactCategory";
 export type { MemoryLoadedPayload } from "./MemoryLoadedPayload";
 export type { MemoryWarningPayload } from "./MemoryWarningPayload";
 export type { MessageRole } from "./MessageRole";

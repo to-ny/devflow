@@ -98,6 +98,7 @@ fn create_subagent_provider(
                 config.execution.clone(),
                 project_path.to_path_buf(),
                 DEFAULT_SYSTEM_PROMPT,
+                config.extraction_prompt.clone(),
             )?;
             Ok(Box::new(adapter))
         }
@@ -108,6 +109,7 @@ fn create_subagent_provider(
                 config.execution.clone(),
                 project_path.to_path_buf(),
                 DEFAULT_SYSTEM_PROMPT,
+                config.extraction_prompt.clone(),
             )?;
             Ok(Box::new(adapter))
         }

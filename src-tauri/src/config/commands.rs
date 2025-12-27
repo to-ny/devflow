@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter};
 
 use super::service::ConfigService;
 use super::types::{ConfigChangedPayload, ProjectConfig, ProviderInfo};
-use crate::agent::{get_tool_descriptions, DEFAULT_SYSTEM_PROMPT};
+use crate::agent::{get_tool_descriptions, DEFAULT_EXTRACTION_PROMPT, DEFAULT_SYSTEM_PROMPT};
 
 #[tauri::command]
 pub fn config_get_last_project() -> Result<Option<String>, String> {
@@ -92,6 +92,13 @@ pub fn config_get_tool_descriptions() -> HashMap<String, String> {
 #[tauri::command]
 pub fn config_get_default_system_prompt() -> String {
     DEFAULT_SYSTEM_PROMPT.to_string()
+}
+
+// Default Extraction Prompt Command (read-only, returns embedded default)
+
+#[tauri::command]
+pub fn config_get_default_extraction_prompt() -> String {
+    DEFAULT_EXTRACTION_PROMPT.to_string()
 }
 
 // AGENTS.md Commands

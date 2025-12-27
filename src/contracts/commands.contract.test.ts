@@ -17,6 +17,7 @@ describe("Contract Tests", () => {
         model: "claude-sonnet-4-20250514",
         api_key_env: "ANTHROPIC_API_KEY",
         max_tokens: 8192,
+        context_limit: null,
       },
       prompts: { pre: "", post: "" },
       execution: {
@@ -27,6 +28,7 @@ describe("Contract Tests", () => {
       notifications: { on_complete: [], on_error: [] },
       search: { provider: "duckduckgo", max_results: 10 },
       system_prompt: null,
+      extraction_prompt: null,
       tool_descriptions: null,
     };
 

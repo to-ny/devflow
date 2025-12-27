@@ -33,6 +33,7 @@ export interface UseSettingsFormReturn {
   // Data
   providers: ProviderInfo[];
   defaultSystemPrompt: string;
+  defaultExtractionPrompt: string;
   defaultToolDescriptions: Record<string, string>;
   projectConfig: ProjectConfig | null;
   agentsMd: string | null;
@@ -44,7 +45,7 @@ export interface UseSettingsFormReturn {
 
   // Actions
   handleSave: () => Promise<void>;
-  updateAgent: (field: string, value: string | number) => void;
+  updateAgent: (field: string, value: string | number | null) => void;
   updateExecution: (field: string, value: number) => void;
   updateSearch: (field: string, value: string | number) => void;
   updateNotifications: (
@@ -54,6 +55,8 @@ export interface UseSettingsFormReturn {
   ) => void;
   updateSystemPrompt: (value: string) => void;
   resetSystemPrompt: () => void;
+  updateExtractionPrompt: (value: string) => void;
+  resetExtractionPrompt: () => void;
   updatePrePostPrompt: (field: "pre" | "post", value: string) => void;
   resetPrePostPrompt: (field: "pre" | "post") => void;
   updateToolDescription: (tool: string, value: string) => void;
@@ -76,6 +79,7 @@ export function useSettingsForm({
   // Data state
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState("");
+  const [defaultExtractionPrompt, setDefaultExtractionPrompt] = useState("");
   const [defaultToolDescriptions, setDefaultToolDescriptions] = useState<
     Record<string, string>
   >({});
@@ -107,15 +111,21 @@ export function useSettingsForm({
         setIsLoading(true);
         setError(null);
 
-        const [providersData, systemPrompt, toolDescriptions] =
-          await Promise.all([
-            invoke<ProviderInfo[]>("config_get_providers"),
-            invoke<string>("config_get_default_system_prompt"),
-            invoke<Record<string, string>>("config_get_tool_descriptions"),
-          ]);
+        const [
+          providersData,
+          systemPrompt,
+          extractionPrompt,
+          toolDescriptions,
+        ] = await Promise.all([
+          invoke<ProviderInfo[]>("config_get_providers"),
+          invoke<string>("config_get_default_system_prompt"),
+          invoke<string>("config_get_default_extraction_prompt"),
+          invoke<Record<string, string>>("config_get_tool_descriptions"),
+        ]);
 
         setProviders(providersData);
         setDefaultSystemPrompt(systemPrompt);
+        setDefaultExtractionPrompt(extractionPrompt);
         setDefaultToolDescriptions(toolDescriptions);
 
         if (projectPath) {
@@ -209,14 +219,17 @@ export function useSettingsForm({
   }, [projectConfig]);
 
   // Update handlers
-  const updateAgent = useCallback((field: string, value: string | number) => {
-    setProjectConfig((prev) => {
-      if (!prev) return prev;
-      return { ...prev, agent: { ...prev.agent, [field]: value } };
-    });
-    setSuccessMessage(null);
-    setValidationErrors((prev) => ({ ...prev, [field]: undefined }));
-  }, []);
+  const updateAgent = useCallback(
+    (field: string, value: string | number | null) => {
+      setProjectConfig((prev) => {
+        if (!prev) return prev;
+        return { ...prev, agent: { ...prev.agent, [field]: value } };
+      });
+      setSuccessMessage(null);
+      setValidationErrors((prev) => ({ ...prev, [field]: undefined }));
+    },
+    [],
+  );
 
   const updateExecution = useCallback((field: string, value: number) => {
     setProjectConfig((prev) => {
@@ -281,6 +294,31 @@ export function useSettingsForm({
     setProjectConfig((prev) => {
       if (!prev) return prev;
       return { ...prev, system_prompt: null };
+    });
+    setSuccessMessage(null);
+  }, []);
+
+  const updateExtractionPrompt = useCallback(
+    (value: string) => {
+      setProjectConfig((prev) => {
+        if (!prev) return prev;
+        const currentEffectiveValue =
+          prev.extraction_prompt ?? defaultExtractionPrompt;
+        if (value === currentEffectiveValue) return prev;
+        if (value === defaultExtractionPrompt) {
+          return { ...prev, extraction_prompt: null };
+        }
+        return { ...prev, extraction_prompt: value };
+      });
+      setSuccessMessage(null);
+    },
+    [defaultExtractionPrompt],
+  );
+
+  const resetExtractionPrompt = useCallback(() => {
+    setProjectConfig((prev) => {
+      if (!prev) return prev;
+      return { ...prev, extraction_prompt: null };
     });
     setSuccessMessage(null);
   }, []);
@@ -412,6 +450,7 @@ export function useSettingsForm({
     validationErrors,
     providers,
     defaultSystemPrompt,
+    defaultExtractionPrompt,
     defaultToolDescriptions,
     projectConfig,
     agentsMd,
@@ -425,6 +464,8 @@ export function useSettingsForm({
     updateNotifications,
     updateSystemPrompt,
     resetSystemPrompt,
+    updateExtractionPrompt,
+    resetExtractionPrompt,
     updatePrePostPrompt,
     resetPrePostPrompt,
     updateToolDescription,

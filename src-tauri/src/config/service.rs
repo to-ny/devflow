@@ -166,6 +166,7 @@ mod tests {
                 model: "claude-sonnet-4-20250514".to_string(),
                 api_key_env: "ANTHROPIC_API_KEY".to_string(),
                 max_tokens: 8192,
+                context_limit: None,
             },
             prompts: PromptsConfig::default(),
             execution: ExecutionConfig {
@@ -177,6 +178,7 @@ mod tests {
             search: SearchConfig::default(),
             system_prompt: None,
             tool_descriptions: None,
+            extraction_prompt: None,
         }
     }
 
@@ -227,6 +229,7 @@ mod tests {
                 model: "claude-sonnet-4-20250514".to_string(),
                 api_key_env: "ANTHROPIC_API_KEY".to_string(),
                 max_tokens: 8192,
+                context_limit: None,
             },
             prompts: PromptsConfig {
                 pre: "You are a helpful assistant.".to_string(),
@@ -244,6 +247,7 @@ mod tests {
             search: SearchConfig::default(),
             system_prompt: None,
             tool_descriptions: None,
+            extraction_prompt: None,
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
@@ -351,6 +355,7 @@ provider = "anthropic"
                 model: "gemini-2.0-flash".to_string(),
                 api_key_env: "GEMINI_API_KEY".to_string(),
                 max_tokens: 4096,
+                context_limit: None,
             },
             execution: ExecutionConfig {
                 timeout_secs: 60,

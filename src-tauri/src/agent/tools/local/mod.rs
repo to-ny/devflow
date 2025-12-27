@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
 pub use context::ExecutionContext;
-pub use state::{PlanApproval, SessionState};
+pub use state::{CompactedContext, PlanApproval, SessionState};
 
 use super::executor::ToolExecutor;
 use super::types::ToolName;

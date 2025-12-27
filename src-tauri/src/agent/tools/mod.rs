@@ -3,6 +3,7 @@ mod local;
 mod types;
 
 pub use executor::ToolExecutor;
+pub use local::CompactedContext;
 pub use local::LocalExecutor;
 pub use local::PlanApproval;
 pub use local::SessionState;

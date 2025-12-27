@@ -43,6 +43,9 @@ pub struct ProjectConfig {
     /// Custom system prompt (None = use default)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
+    /// Custom extraction prompt for context compaction (None = use default)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extraction_prompt: Option<String>,
     /// Custom tool descriptions (None = use defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_descriptions: Option<HashMap<String, String>>,
@@ -81,6 +84,8 @@ pub struct AgentConfig {
     pub model: String,
     pub api_key_env: String,
     pub max_tokens: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_limit: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]

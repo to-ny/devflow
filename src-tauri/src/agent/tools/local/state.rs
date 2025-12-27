@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, RwLock};
 
 use crate::agent::tools::types::TodoItem;
+use crate::agent::types::CompactedFact;
 
 /// Result of plan approval
 #[derive(Debug, Clone)]
@@ -17,10 +18,17 @@ struct PlanApprovalState {
     receiver: Option<oneshot::Receiver<PlanApproval>>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CompactedContext {
+    pub summary: Option<String>,
+    pub facts: Vec<CompactedFact>,
+}
+
 #[derive(Clone)]
 pub struct SessionState {
     todos: Arc<RwLock<Vec<TodoItem>>>,
     plan_approval: Arc<RwLock<PlanApprovalState>>,
+    compacted: Arc<RwLock<CompactedContext>>,
 }
 
 impl Default for SessionState {
@@ -38,6 +46,7 @@ impl SessionState {
                 sender: None,
                 receiver: None,
             })),
+            compacted: Arc::new(RwLock::new(CompactedContext::default())),
         }
     }
 
@@ -118,6 +127,23 @@ impl SessionState {
     pub async fn has_pending_plan(&self) -> bool {
         let state = self.plan_approval.read().await;
         state.plan.is_some() && state.sender.is_some()
+    }
+
+    pub async fn get_compacted(&self) -> CompactedContext {
+        self.compacted.read().await.clone()
+    }
+
+    pub async fn set_compacted(&self, context: CompactedContext) {
+        *self.compacted.write().await = context;
+    }
+
+    pub async fn has_compacted(&self) -> bool {
+        let ctx = self.compacted.read().await;
+        ctx.summary.is_some() || !ctx.facts.is_empty()
+    }
+
+    pub async fn clear_compacted(&self) {
+        *self.compacted.write().await = CompactedContext::default();
     }
 
     #[cfg(test)]

@@ -43,6 +43,7 @@ const mockConfig: ProjectConfig = {
     model: "claude-sonnet-4-20250514",
     api_key_env: "ANTHROPIC_API_KEY",
     max_tokens: 8192,
+    context_limit: null,
   },
   prompts: {
     pre: "Pre-prompt text",
@@ -62,6 +63,7 @@ const mockConfig: ProjectConfig = {
     max_results: 10,
   },
   system_prompt: null,
+  extraction_prompt: null,
   tool_descriptions: null,
 };
 
@@ -87,6 +89,9 @@ describe("SettingsPage", () => {
       }
       if (cmd === "config_get_default_system_prompt") {
         return Promise.resolve(mockDefaultSystemPrompt);
+      }
+      if (cmd === "config_get_default_extraction_prompt") {
+        return Promise.resolve("Default extraction prompt");
       }
       if (cmd === "config_get_tool_descriptions") {
         return Promise.resolve(mockToolDescriptions);

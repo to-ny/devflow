@@ -160,6 +160,7 @@ pub enum AgentStatus {
     Streaming,
     ToolRunning,
     ToolWaiting,
+    Compacting,
     Cancelled,
     Error,
 }
@@ -179,6 +180,7 @@ impl AgentStatus {
                 }
             }
             AgentStatus::ToolWaiting => "Waiting for response...".to_string(),
+            AgentStatus::Compacting => "Compacting context...".to_string(),
             AgentStatus::Cancelled => "Cancelled".to_string(),
             AgentStatus::Error => "Error".to_string(),
         }
@@ -208,5 +210,36 @@ pub struct MemoryLoadedPayload {
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
 pub struct MemoryWarningPayload {
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "snake_case")]
+pub enum FactCategory {
+    Decision,
+    Preference,
+    Context,
+    Blocker,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CompactedFact {
+    pub category: FactCategory,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AgentCompactionPayload {
+    pub original_tokens: u32,
+    pub compacted_tokens: u32,
+    pub facts_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AgentCompactionWarningPayload {
     pub message: String,
 }

@@ -11,6 +11,10 @@ export type ProjectConfig = { agent: AgentConfig, execution: ExecutionConfig, se
  */
 system_prompt: string | null, 
 /**
+ * Custom extraction prompt for context compaction (None = use default)
+ */
+extraction_prompt: string | null, 
+/**
  * Custom tool descriptions (None = use defaults)
  */
 tool_descriptions: { [key in string]?: string } | null, };

@@ -22,8 +22,9 @@ use crate::agent::usage::{SessionUsageTracker, UsageSource};
 use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
 use super::{
-    build_system_prompt, check_iteration_limit, create_executor, emit_status, emit_usage,
-    execute_tool_calls,
+    build_system_prompt, check_iteration_limit,
+    compaction::{format_compacted_context, get_context_limit, maybe_compact, CompactionContext},
+    create_executor, emit_status, emit_usage, execute_tool_calls,
     headless::{
         HeadlessResponse, HeadlessStreamer, ToolCall as HeadlessToolCall,
         ToolResult as HeadlessToolResult,
@@ -46,6 +47,8 @@ pub struct AnthropicAdapter {
     api_key: String,
     project_path: PathBuf,
     app_system_prompt: &'static str,
+    context_limit: u32,
+    extraction_prompt: Option<String>,
 }
 
 impl AnthropicAdapter {
@@ -55,9 +58,12 @@ impl AnthropicAdapter {
         execution: ExecutionConfig,
         project_path: PathBuf,
         app_system_prompt: &'static str,
+        extraction_prompt: Option<String>,
     ) -> Result<Self, AgentError> {
         let api_key = env::var(&config.api_key_env)
             .map_err(|_| AgentError::MissingApiKey(config.api_key_env.clone()))?;
+
+        let context_limit = get_context_limit(config.context_limit);
 
         Ok(Self {
             client: Client::new(),
@@ -67,6 +73,8 @@ impl AnthropicAdapter {
             api_key,
             project_path,
             app_system_prompt,
+            context_limit,
+            extraction_prompt,
         })
     }
 
@@ -330,6 +338,62 @@ impl AnthropicAdapter {
         }
     }
 
+    async fn call_extraction_api(
+        &self,
+        prompt: String,
+        cancel_token: &CancellationToken,
+    ) -> Result<String, AgentError> {
+        if cancel_token.is_cancelled() {
+            return Err(AgentError::Cancelled);
+        }
+
+        let request = AnthropicRequest {
+            model: self.config.model.clone(),
+            max_tokens: 2048,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text(prompt),
+            }],
+            stream: false,
+            system: Some("You are a precise assistant that extracts and summarizes information. Always respond with valid JSON.".to_string()),
+            tools: None,
+        };
+
+        let response = self
+            .client
+            .post(API_URL)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", API_VERSION)
+            .header("content-type", "application/json")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentError::ApiError(format!(
+                "Extraction failed: {}: {}",
+                status, body
+            )));
+        }
+
+        // Parse the non-streaming response
+        let body = response.text().await?;
+        let json: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse response: {}", e)))?;
+
+        // Extract text from the response
+        let text = json["content"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|block| block["text"].as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok(text)
+    }
+
     async fn stream_response_headless(
         &self,
         messages: &[AnthropicMessage],
@@ -568,10 +632,8 @@ impl ProviderAdapter for AnthropicAdapter {
         ctx: ExecutionContext,
         app_handle: AppHandle,
     ) -> Result<(), AgentError> {
-        let anthropic_messages: Vec<AnthropicMessage> =
-            messages.iter().map(AnthropicMessage::from).collect();
-
-        let system = build_system_prompt(
+        // Build system prompt first
+        let base_system = build_system_prompt(
             self.app_system_prompt,
             &self.prompts,
             system_prompt,
@@ -582,10 +644,45 @@ impl ProviderAdapter for AnthropicAdapter {
 
         emit_status(&app_handle, AgentStatus::Sending, None);
 
+        // Check if compaction is needed
+        let compaction_ctx = CompactionContext {
+            context_limit: self.context_limit,
+            extraction_prompt: self.extraction_prompt.as_deref(),
+            session: &ctx.session,
+            app_handle: &app_handle,
+        };
+
+        let compaction_result =
+            maybe_compact(&messages, Some(&base_system), &compaction_ctx, |prompt| {
+                self.call_extraction_api(prompt, &ctx.cancel_token)
+            })
+            .await?;
+
+        // Prepare messages and system prompt based on compaction result
+        let (final_messages, final_system) = match compaction_result {
+            Some(result) => {
+                let system_with_context = format!("{}\n\n{}", base_system, result.compacted_text);
+                (result.preserved_messages, system_with_context)
+            }
+            None => {
+                let existing = ctx.session.get_compacted().await;
+                if existing.summary.is_some() || !existing.facts.is_empty() {
+                    let compacted_text = format_compacted_context(&existing);
+                    let system_with_context = format!("{}\n\n{}", base_system, compacted_text);
+                    (messages.clone(), system_with_context)
+                } else {
+                    (messages.clone(), base_system)
+                }
+            }
+        };
+
+        let anthropic_messages: Vec<AnthropicMessage> =
+            final_messages.iter().map(AnthropicMessage::from).collect();
+
         let result = self
             .execute_tool_loop(
                 anthropic_messages,
-                Some(system),
+                Some(final_system),
                 ctx.session,
                 &app_handle,
                 &ctx.cancel_token,

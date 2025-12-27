@@ -123,9 +123,12 @@ export function SettingsPage() {
           <PromptsSection
             config={form.projectConfig!}
             defaultSystemPrompt={form.defaultSystemPrompt}
+            defaultExtractionPrompt={form.defaultExtractionPrompt}
             agentsMd={form.agentsMd}
             onUpdateSystemPrompt={form.updateSystemPrompt}
             onResetSystemPrompt={form.resetSystemPrompt}
+            onUpdateExtractionPrompt={form.updateExtractionPrompt}
+            onResetExtractionPrompt={form.resetExtractionPrompt}
             onUpdatePrePostPrompt={form.updatePrePostPrompt}
             onResetPrePostPrompt={form.resetPrePostPrompt}
             onSetAgentsMd={form.setAgentsMd}

@@ -8,7 +8,7 @@ interface AgentSectionProps {
   currentModels: string[];
   validationErrors: FormValidationErrors;
   onProviderChange: (providerId: string) => void;
-  onUpdateAgent: (field: string, value: string | number) => void;
+  onUpdateAgent: (field: string, value: string | number | null) => void;
 }
 
 export function AgentSection({
@@ -110,6 +110,25 @@ export function AgentSection({
         {validationErrors.max_tokens && (
           <span className="field-error">{validationErrors.max_tokens}</span>
         )}
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="context_limit">Context Limit (tokens)</label>
+        <input
+          type="number"
+          id="context_limit"
+          value={agent.context_limit ?? ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            onUpdateAgent("context_limit", value === "" ? null : Number(value));
+          }}
+          min={10000}
+          max={2000000}
+          placeholder="200000 (default)"
+        />
+        <span className="field-hint">
+          Maximum context window size. Leave empty to use default (200k).
+        </span>
       </div>
     </SettingsSection>
   );
