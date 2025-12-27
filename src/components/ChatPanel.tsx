@@ -1,14 +1,14 @@
-import { useState, useRef, useEffect, KeyboardEvent, useMemo } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useChat, ToolExecution } from "../context/ChatContext";
 import type { ChatMessage } from "../types/agent";
+import { getToolIcon, getToolLabel } from "../utils/toolUtils";
+import { ToolDetailDialog, ToolDetail } from "./ToolDetailDialog";
 import "./Panel.css";
 import "./ChatPanel.css";
-
-const TOOL_OUTPUT_TRUNCATE_LENGTH = 500;
 
 // Extracted MarkdownContent component for reuse
 interface MarkdownContentProps {
@@ -51,127 +51,35 @@ function MarkdownContent({ content }: MarkdownContentProps) {
 
 interface ToolBlockProps {
   execution: ToolExecution;
+  onOpenDetail: (tool: ToolDetail) => void;
 }
 
-function ToolBlock({ execution }: ToolBlockProps) {
-  const [inputExpanded, setInputExpanded] = useState(false);
-  const [outputExpanded, setOutputExpanded] = useState(false);
-
-  // toolInput is already an object from the backend
-  const formattedInput = useMemo(() => {
-    if (typeof execution.toolInput === "object") {
-      return JSON.stringify(execution.toolInput, null, 2);
-    }
-    return String(execution.toolInput);
-  }, [execution.toolInput]);
-
-  const outputTruncated =
-    execution.output && execution.output.length > TOOL_OUTPUT_TRUNCATE_LENGTH;
-  const displayOutput = outputExpanded
-    ? execution.output
-    : execution.output?.slice(0, TOOL_OUTPUT_TRUNCATE_LENGTH);
-
-  const getToolIcon = (name: string) => {
-    switch (name) {
-      case "bash":
-        return "⌘";
-      case "read_file":
-        return "📄";
-      case "write_file":
-        return "✏️";
-      case "edit_file":
-        return "📝";
-      case "list_directory":
-        return "📁";
-      case "web_fetch":
-        return "🌐";
-      case "search_web":
-        return "🔍";
-      case "dispatch_agent":
-        return "🤖";
-      case "submit_plan":
-        return "📋";
-      default:
-        return "🔧";
-    }
+function ToolBlock({ execution, onOpenDetail }: ToolBlockProps) {
+  const handleClick = () => {
+    onOpenDetail({
+      toolName: execution.toolName,
+      toolInput: execution.toolInput,
+      output: execution.output,
+      isError: execution.isError,
+      isComplete: execution.isComplete,
+    });
   };
 
-  const getToolLabel = (name: string) => {
-    switch (name) {
-      case "bash":
-        return "Shell Command";
-      case "read_file":
-        return "Read File";
-      case "write_file":
-        return "Write File";
-      case "edit_file":
-        return "Edit File";
-      case "list_directory":
-        return "List Directory";
-      case "web_fetch":
-        return "Fetch URL";
-      case "search_web":
-        return "Web Search";
-      case "dispatch_agent":
-        return "Sub-Agent";
-      case "submit_plan":
-        return "Submit Plan";
-      default:
-        return name;
-    }
-  };
+  const statusClass = execution.isComplete
+    ? execution.isError
+      ? "tool-error"
+      : "tool-success"
+    : "tool-running";
 
   return (
-    <div
-      className={`tool-block ${execution.isComplete ? (execution.isError ? "tool-error" : "tool-success") : "tool-running"}`}
-    >
-      <div className="tool-header">
-        <span className="tool-icon">{getToolIcon(execution.toolName)}</span>
-        <span className="tool-name">{getToolLabel(execution.toolName)}</span>
-        <span className="tool-status">
-          {!execution.isComplete && <span className="tool-spinner" />}
-          {execution.isComplete && !execution.isError && "✓"}
-          {execution.isComplete && execution.isError && "✗"}
-        </span>
-      </div>
-
-      <div className="tool-section">
-        <button
-          className="tool-toggle"
-          onClick={() => setInputExpanded(!inputExpanded)}
-        >
-          {inputExpanded ? "▼" : "▶"} Input
-        </button>
-        {inputExpanded && <pre className="tool-content">{formattedInput}</pre>}
-      </div>
-
-      {execution.isComplete && execution.output && (
-        <div className="tool-section">
-          <button
-            className="tool-toggle"
-            onClick={() => setOutputExpanded(!outputExpanded)}
-          >
-            {outputExpanded ? "▼" : "▶"} Output
-          </button>
-          {(outputExpanded || !outputTruncated) && (
-            <pre
-              className={`tool-content ${execution.isError ? "tool-output-error" : ""}`}
-            >
-              {displayOutput}
-              {outputTruncated && !outputExpanded && (
-                <button
-                  className="show-more-btn"
-                  onClick={() => setOutputExpanded(true)}
-                >
-                  ... Show more (
-                  {execution.output.length - TOOL_OUTPUT_TRUNCATE_LENGTH} more
-                  chars)
-                </button>
-              )}
-            </pre>
-          )}
-        </div>
-      )}
+    <div className={`tool-row ${statusClass}`} onClick={handleClick}>
+      <span className="tool-row-icon">{getToolIcon(execution.toolName)}</span>
+      <span className="tool-row-name">{getToolLabel(execution.toolName)}</span>
+      <span className="tool-row-status">
+        {!execution.isComplete && <span className="tool-spinner" />}
+        {execution.isComplete && !execution.isError && "\u2713"}
+        {execution.isComplete && execution.isError && "\u2717"}
+      </span>
     </div>
   );
 }
@@ -179,122 +87,32 @@ function ToolBlock({ execution }: ToolBlockProps) {
 // Component for rendering historical tool executions from saved messages
 interface HistoricalToolBlockProps {
   toolExec: NonNullable<ChatMessage["tool_executions"]>[number];
+  onOpenDetail: (tool: ToolDetail) => void;
 }
 
-function HistoricalToolBlock({ toolExec }: HistoricalToolBlockProps) {
-  const [inputExpanded, setInputExpanded] = useState(false);
-  const [outputExpanded, setOutputExpanded] = useState(false);
-
-  const formattedInput = useMemo(() => {
-    if (typeof toolExec.tool_input === "object") {
-      return JSON.stringify(toolExec.tool_input, null, 2);
-    }
-    return String(toolExec.tool_input);
-  }, [toolExec.tool_input]);
-
-  const outputTruncated =
-    toolExec.output && toolExec.output.length > TOOL_OUTPUT_TRUNCATE_LENGTH;
-  const displayOutput = outputExpanded
-    ? toolExec.output
-    : toolExec.output?.slice(0, TOOL_OUTPUT_TRUNCATE_LENGTH);
-
-  const getToolIcon = (name: string) => {
-    switch (name) {
-      case "bash":
-        return "⌘";
-      case "read_file":
-        return "📄";
-      case "write_file":
-        return "✏️";
-      case "edit_file":
-        return "📝";
-      case "list_directory":
-        return "📁";
-      case "web_fetch":
-        return "🌐";
-      case "search_web":
-        return "🔍";
-      case "dispatch_agent":
-        return "🤖";
-      case "submit_plan":
-        return "📋";
-      default:
-        return "🔧";
-    }
+function HistoricalToolBlock({
+  toolExec,
+  onOpenDetail,
+}: HistoricalToolBlockProps) {
+  const handleClick = () => {
+    onOpenDetail({
+      toolName: toolExec.tool_name,
+      toolInput: toolExec.tool_input,
+      output: toolExec.output,
+      isError: toolExec.is_error,
+      isComplete: true, // Historical executions are always complete
+    });
   };
 
-  const getToolLabel = (name: string) => {
-    switch (name) {
-      case "bash":
-        return "Shell Command";
-      case "read_file":
-        return "Read File";
-      case "write_file":
-        return "Write File";
-      case "edit_file":
-        return "Edit File";
-      case "list_directory":
-        return "List Directory";
-      case "web_fetch":
-        return "Fetch URL";
-      case "search_web":
-        return "Web Search";
-      case "dispatch_agent":
-        return "Sub-Agent";
-      case "submit_plan":
-        return "Submit Plan";
-      default:
-        return name;
-    }
-  };
+  const statusClass = toolExec.is_error ? "tool-error" : "tool-success";
 
   return (
-    <div
-      className={`tool-block ${toolExec.is_error ? "tool-error" : "tool-success"}`}
-    >
-      <div className="tool-header">
-        <span className="tool-icon">{getToolIcon(toolExec.tool_name)}</span>
-        <span className="tool-name">{getToolLabel(toolExec.tool_name)}</span>
-        <span className="tool-status">{toolExec.is_error ? "✗" : "✓"}</span>
-      </div>
-
-      <div className="tool-section">
-        <button
-          className="tool-toggle"
-          onClick={() => setInputExpanded(!inputExpanded)}
-        >
-          {inputExpanded ? "▼" : "▶"} Input
-        </button>
-        {inputExpanded && <pre className="tool-content">{formattedInput}</pre>}
-      </div>
-
-      {toolExec.output && (
-        <div className="tool-section">
-          <button
-            className="tool-toggle"
-            onClick={() => setOutputExpanded(!outputExpanded)}
-          >
-            {outputExpanded ? "▼" : "▶"} Output
-          </button>
-          {(outputExpanded || !outputTruncated) && (
-            <pre
-              className={`tool-content ${toolExec.is_error ? "tool-output-error" : ""}`}
-            >
-              {displayOutput}
-              {outputTruncated && !outputExpanded && (
-                <button
-                  className="show-more-btn"
-                  onClick={() => setOutputExpanded(true)}
-                >
-                  ... Show more (
-                  {toolExec.output.length - TOOL_OUTPUT_TRUNCATE_LENGTH} more
-                  chars)
-                </button>
-              )}
-            </pre>
-          )}
-        </div>
-      )}
+    <div className={`tool-row ${statusClass}`} onClick={handleClick}>
+      <span className="tool-row-icon">{getToolIcon(toolExec.tool_name)}</span>
+      <span className="tool-row-name">{getToolLabel(toolExec.tool_name)}</span>
+      <span className="tool-row-status">
+        {toolExec.is_error ? "\u2717" : "\u2713"}
+      </span>
     </div>
   );
 }
@@ -541,6 +359,7 @@ export function ChatPanel() {
     pendingPlan,
     sendMessage,
     cancelRequest,
+    clearMessages,
     clearError,
     removeFromQueue,
     clearPromptHistory,
@@ -549,8 +368,31 @@ export function ChatPanel() {
   } = useChat();
 
   const [input, setInput] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<ToolDetail | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleClearClick = () => {
+    setShowClearConfirm(true);
+  };
+
+  const handleClearConfirm = () => {
+    clearMessages();
+    setShowClearConfirm(false);
+  };
+
+  const handleClearCancel = () => {
+    setShowClearConfirm(false);
+  };
+
+  const handleOpenToolDetail = (tool: ToolDetail) => {
+    setSelectedTool(tool);
+  };
+
+  const handleCloseToolDetail = () => {
+    setSelectedTool(null);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -586,13 +428,55 @@ export function ChatPanel() {
     <div className="panel-container chat-panel">
       <div className="panel-header">
         <h2>Chat</h2>
-        {statusText && (
-          <div className="chat-status">
-            {isLoading && <span className="status-spinner" />}
-            <span className="status-text">{statusText}</span>
-          </div>
-        )}
+        <div className="panel-header-actions">
+          {statusText && (
+            <div className="chat-status">
+              {isLoading && <span className="status-spinner" />}
+              <span className="status-text">{statusText}</span>
+            </div>
+          )}
+          <button
+            className="chat-clear-btn"
+            onClick={handleClearClick}
+            disabled={isLoading || messages.length === 0}
+            title="Clear chat"
+          >
+            Clear
+          </button>
+        </div>
       </div>
+
+      {/* Clear confirmation dialog */}
+      {showClearConfirm && (
+        <div className="confirm-dialog-overlay">
+          <div className="confirm-dialog">
+            <div className="confirm-dialog-header">Clear Chat</div>
+            <div className="confirm-dialog-body">
+              Are you sure you want to clear all messages? This action cannot be
+              undone.
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                className="confirm-dialog-cancel"
+                onClick={handleClearCancel}
+              >
+                Cancel
+              </button>
+              <button
+                className="confirm-dialog-confirm"
+                onClick={handleClearConfirm}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tool detail dialog */}
+      {selectedTool && (
+        <ToolDetailDialog tool={selectedTool} onClose={handleCloseToolDetail} />
+      )}
 
       <div className="chat-messages">
         {messages.length === 0 && !isLoading && (
@@ -612,6 +496,7 @@ export function ChatPanel() {
                     <HistoricalToolBlock
                       key={toolExec.tool_use_id}
                       toolExec={toolExec}
+                      onOpenDetail={handleOpenToolDetail}
                     />
                   ))}
                   <MarkdownContent content={msg.content} />
@@ -630,7 +515,11 @@ export function ChatPanel() {
             <div className="chat-message-content">
               {/* Tool executions */}
               {toolExecutions.map((exec) => (
-                <ToolBlock key={exec.toolUseId} execution={exec} />
+                <ToolBlock
+                  key={exec.toolUseId}
+                  execution={exec}
+                  onOpenDetail={handleOpenToolDetail}
+                />
               ))}
 
               {/* Streamed text */}

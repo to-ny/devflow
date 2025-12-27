@@ -557,8 +557,12 @@ describe("ChatPanel", () => {
       const historyButton = screen.getByTitle("Prompt history");
       await userEvent.click(historyButton);
 
-      const clearButton = screen.getByRole("button", { name: "Clear" });
-      await userEvent.click(clearButton);
+      // Find the clear button inside the prompt history dropdown (not the chat clear button)
+      const promptHistoryClearButton = screen
+        .getAllByRole("button", { name: "Clear" })
+        .find((btn) => btn.classList.contains("prompt-history-clear"));
+      expect(promptHistoryClearButton).toBeDefined();
+      await userEvent.click(promptHistoryClearButton!);
 
       expect(mockClearPromptHistory).toHaveBeenCalledOnce();
     });
