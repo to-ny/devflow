@@ -1,6 +1,6 @@
 # Devflow
 
-Desktop app for AI-assisted iterative code development with integrated diff review.
+Desktop app for AI-assisted iterative code development with integrated Git diff review.
 
 ## Stack
 
@@ -24,6 +24,7 @@ Desktop app for AI-assisted iterative code development with integrated diff revi
 ## Commands
 
 - `make test` - run all tests
-- `make build-windows-dev` - build Windows executable with devtools
 - `make fmt` - format code
 - `make lint` - lint code
+- `make build-windows` - build Windows executable
+- `make build-windows-dev` - build Windows executable with devtools - ONLY for investigation with logging

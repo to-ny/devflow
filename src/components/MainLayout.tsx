@@ -1,5 +1,5 @@
 import { useNavigation } from "../context/NavigationContext";
-import { useChat } from "../context/ChatContext";
+import { useSession } from "../context/SessionContext";
 import { BottomNav } from "./BottomNav";
 import { Toast } from "./Toast";
 import { ChatPage, ChangesPage, SettingsPage } from "../pages";
@@ -7,7 +7,7 @@ import "./MainLayout.css";
 
 export function MainLayout() {
   const { currentPage } = useNavigation();
-  const { memoryWarning, clearMemoryWarning } = useChat();
+  const { memoryWarning, clearMemoryWarning } = useSession();
 
   return (
     <div className="main-layout">

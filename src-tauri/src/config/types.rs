@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -31,13 +33,19 @@ pub struct AppState {
 #[ts(export)]
 pub struct ProjectConfig {
     pub agent: AgentConfig,
-    #[serde(default)]
-    pub prompts: PromptsConfig,
     pub execution: ExecutionConfig,
+    #[serde(default)]
+    pub search: SearchConfig,
     #[serde(default)]
     pub notifications: NotificationsConfig,
     #[serde(default)]
-    pub search: SearchConfig,
+    pub prompts: PromptsConfig,
+    /// Custom system prompt (None = use default)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
+    /// Custom tool descriptions (None = use defaults)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_descriptions: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

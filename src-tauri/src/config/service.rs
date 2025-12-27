@@ -9,6 +9,7 @@ use super::types::{AppConfig, ProjectConfig};
 const APP_CONFIG_FILENAME: &str = "app.toml";
 const PROJECT_CONFIG_DIR: &str = ".devflow";
 const PROJECT_CONFIG_FILENAME: &str = "config.toml";
+const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 
 pub struct ConfigService {
     app_data_dir: PathBuf,
@@ -106,6 +107,45 @@ impl ConfigService {
     pub fn project_config_exists(project_path: &Path) -> bool {
         Self::project_config_path(project_path).exists()
     }
+
+    // AGENTS.md Methods
+
+    fn agents_md_path(project_path: &Path) -> PathBuf {
+        project_path.join(AGENTS_MD_FILENAME)
+    }
+
+    /// Load AGENTS.md (None if missing)
+    pub fn load_agents_md(project_path: &Path) -> Result<Option<String>, ConfigError> {
+        let path = Self::agents_md_path(project_path);
+
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        let content = fs::read_to_string(&path).map_err(|e| ConfigError::ReadError {
+            path: path.clone(),
+            source: e,
+        })?;
+
+        Ok(Some(content))
+    }
+
+    /// Save AGENTS.md (skips empty content)
+    pub fn save_agents_md(project_path: &Path, content: Option<String>) -> Result<(), ConfigError> {
+        let path = Self::agents_md_path(project_path);
+
+        match content {
+            Some(c) if !c.trim().is_empty() => {
+                fs::write(&path, c).map_err(|e| ConfigError::WriteError { path, source: e })
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Check if AGENTS.md exists
+    pub fn agents_md_exists(project_path: &Path) -> bool {
+        Self::agents_md_path(project_path).exists()
+    }
 }
 
 #[cfg(test)]
@@ -117,6 +157,27 @@ mod tests {
 
     fn create_temp_dir() -> TempDir {
         tempfile::tempdir().unwrap()
+    }
+
+    fn test_project_config() -> ProjectConfig {
+        ProjectConfig {
+            agent: AgentConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-sonnet-4-20250514".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                max_tokens: 8192,
+            },
+            prompts: PromptsConfig::default(),
+            execution: ExecutionConfig {
+                timeout_secs: 30,
+                max_tool_iterations: 50,
+                max_agent_depth: 3,
+            },
+            notifications: NotificationsConfig::default(),
+            search: SearchConfig::default(),
+            system_prompt: None,
+            tool_descriptions: None,
+        }
     }
 
     #[test]
@@ -181,6 +242,8 @@ mod tests {
                 on_error: vec![NotificationAction::Sound, NotificationAction::Window],
             },
             search: SearchConfig::default(),
+            system_prompt: None,
+            tool_descriptions: None,
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
@@ -266,22 +329,7 @@ provider = "anthropic"
     fn test_save_creates_devflow_directory() {
         let temp_dir = create_temp_dir();
 
-        let config = ProjectConfig {
-            agent: AgentConfig {
-                provider: "anthropic".to_string(),
-                model: "claude-sonnet-4-20250514".to_string(),
-                api_key_env: "ANTHROPIC_API_KEY".to_string(),
-                max_tokens: 8192,
-            },
-            prompts: PromptsConfig::default(),
-            execution: ExecutionConfig {
-                timeout_secs: 30,
-                max_tool_iterations: 50,
-                max_agent_depth: 3,
-            },
-            notifications: NotificationsConfig::default(),
-            search: SearchConfig::default(),
-        };
+        let config = test_project_config();
 
         let devflow_dir = temp_dir.path().join(".devflow");
         assert!(!devflow_dir.exists());
@@ -294,23 +342,7 @@ provider = "anthropic"
     fn test_overwrite_existing_config() {
         let temp_dir = create_temp_dir();
 
-        let config1 = ProjectConfig {
-            agent: AgentConfig {
-                provider: "anthropic".to_string(),
-                model: "claude-sonnet-4-20250514".to_string(),
-                api_key_env: "ANTHROPIC_API_KEY".to_string(),
-                max_tokens: 8192,
-            },
-            prompts: PromptsConfig::default(),
-            execution: ExecutionConfig {
-                timeout_secs: 30,
-                max_tool_iterations: 50,
-                max_agent_depth: 3,
-            },
-            notifications: NotificationsConfig::default(),
-            search: SearchConfig::default(),
-        };
-
+        let config1 = test_project_config();
         ConfigService::save_project_config(temp_dir.path(), &config1).unwrap();
 
         let config2 = ProjectConfig {
@@ -320,14 +352,12 @@ provider = "anthropic"
                 api_key_env: "GEMINI_API_KEY".to_string(),
                 max_tokens: 4096,
             },
-            prompts: PromptsConfig::default(),
             execution: ExecutionConfig {
                 timeout_secs: 60,
                 max_tool_iterations: 100,
                 max_agent_depth: 5,
             },
-            notifications: NotificationsConfig::default(),
-            search: SearchConfig::default(),
+            ..test_project_config()
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config2).unwrap();
@@ -390,23 +420,11 @@ provider = "anthropic"
         let temp_dir = create_temp_dir();
 
         let config = ProjectConfig {
-            agent: AgentConfig {
-                provider: "anthropic".to_string(),
-                model: "claude-sonnet-4-20250514".to_string(),
-                api_key_env: "ANTHROPIC_API_KEY".to_string(),
-                max_tokens: 8192,
-            },
-            prompts: PromptsConfig::default(),
-            execution: ExecutionConfig {
-                timeout_secs: 30,
-                max_tool_iterations: 50,
-                max_agent_depth: 3,
-            },
             notifications: NotificationsConfig {
                 on_complete: vec![NotificationAction::Sound, NotificationAction::Window],
                 on_error: vec![NotificationAction::Window],
             },
-            search: SearchConfig::default(),
+            ..test_project_config()
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
@@ -482,23 +500,11 @@ max_tool_iterations = 50
         let temp_dir = create_temp_dir();
 
         let config = ProjectConfig {
-            agent: AgentConfig {
-                provider: "anthropic".to_string(),
-                model: "claude-sonnet-4-20250514".to_string(),
-                api_key_env: "ANTHROPIC_API_KEY".to_string(),
-                max_tokens: 8192,
-            },
             prompts: PromptsConfig {
                 pre: "System prompt".to_string(),
                 post: "".to_string(),
             },
-            execution: ExecutionConfig {
-                timeout_secs: 30,
-                max_tool_iterations: 50,
-                max_agent_depth: 3,
-            },
-            notifications: NotificationsConfig::default(),
-            search: SearchConfig::default(),
+            ..test_project_config()
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();
@@ -509,5 +515,43 @@ max_tool_iterations = 50
         assert!(content.contains("provider = \"anthropic\""));
         assert!(content.contains("[execution]"));
         assert!(content.contains("timeout_secs = 30"));
+    }
+
+    #[test]
+    fn test_agents_md_load_not_found() {
+        let temp_dir = create_temp_dir();
+        let result = ConfigService::load_agents_md(temp_dir.path()).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_agents_md_save_and_load() {
+        let temp_dir = create_temp_dir();
+        let content = "# Project Memory\n\nThis is test content.".to_string();
+
+        ConfigService::save_agents_md(temp_dir.path(), Some(content.clone())).unwrap();
+
+        let loaded = ConfigService::load_agents_md(temp_dir.path()).unwrap();
+        assert_eq!(loaded, Some(content));
+    }
+
+    #[test]
+    fn test_agents_md_not_saved_when_empty() {
+        let temp_dir = create_temp_dir();
+
+        ConfigService::save_agents_md(temp_dir.path(), Some("  ".to_string())).unwrap();
+
+        assert!(!ConfigService::agents_md_exists(temp_dir.path()));
+    }
+
+    #[test]
+    fn test_agents_md_exists() {
+        let temp_dir = create_temp_dir();
+
+        assert!(!ConfigService::agents_md_exists(temp_dir.path()));
+
+        fs::write(temp_dir.path().join("AGENTS.md"), "content").unwrap();
+
+        assert!(ConfigService::agents_md_exists(temp_dir.path()));
     }
 }

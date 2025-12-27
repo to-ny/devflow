@@ -201,7 +201,7 @@ pub struct PlanReadyPayload {
 #[ts(export)]
 pub struct MemoryLoadedPayload {
     pub path: String,
-    pub char_count: u32,
+    pub byte_len: u32,
     pub truncated: bool,
 }
 

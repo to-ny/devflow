@@ -8,7 +8,7 @@ const MAX_CHAR_COUNT: usize = 50_000;
 #[derive(Debug, Default)]
 pub struct MemoryState {
     content: Option<String>,
-    char_count: usize,
+    byte_len: usize,
     truncated: bool,
     last_modified: Option<SystemTime>,
 }
@@ -17,7 +17,7 @@ pub struct MemoryState {
 pub enum LoadResult {
     Loaded {
         path: String,
-        char_count: u32,
+        byte_len: u32,
         truncated: bool,
     },
     NotFound,
@@ -74,12 +74,12 @@ impl MemoryState {
             (content, false)
         };
 
-        let char_count = final_content.len();
+        let byte_len = final_content.len();
         let path_str = file_path.to_string_lossy().to_string();
 
         let state = Self {
             content: Some(final_content),
-            char_count,
+            byte_len,
             truncated,
             last_modified,
         };
@@ -88,7 +88,7 @@ impl MemoryState {
             state,
             LoadResult::Loaded {
                 path: path_str,
-                char_count: char_count as u32,
+                byte_len: byte_len as u32,
                 truncated,
             },
         )
@@ -134,8 +134,8 @@ impl MemoryState {
         })
     }
 
-    pub fn char_count(&self) -> usize {
-        self.char_count
+    pub fn byte_len(&self) -> usize {
+        self.byte_len
     }
 
     pub fn is_truncated(&self) -> bool {
@@ -176,12 +176,12 @@ mod tests {
         assert!(!state.is_truncated());
 
         if let LoadResult::Loaded {
-            char_count,
+            byte_len,
             truncated,
             ..
         } = result
         {
-            assert!(char_count > 0);
+            assert!(byte_len > 0);
             assert!(!truncated);
         } else {
             panic!("Expected LoadResult::Loaded");
@@ -202,7 +202,7 @@ mod tests {
 
         assert!(state.is_loaded());
         assert!(state.is_truncated());
-        assert!(state.char_count() <= MAX_CHAR_COUNT + 100); // Allow for truncation message
+        assert!(state.byte_len() <= MAX_CHAR_COUNT + 100); // Allow for truncation message
 
         if let LoadResult::Loaded { truncated, .. } = result {
             assert!(truncated);

@@ -1,17 +1,22 @@
 [agent]
-provider = "gemini"
-model = "gemini-2.0-flash"
-api_key_env = "GEMINI_API_KEY"
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
 max_tokens = 8192
-
-[prompts]
-pre = ""
-post = ""
 
 [execution]
 timeout_secs = 120
 max_tool_iterations = 50
+max_agent_depth = 3
+
+[search]
+provider = "duckduckgo"
+max_results = 10
 
 [notifications]
 on_complete = ["window"]
 on_error = ["window"]
+
+[prompts]
+pre = ""
+post = ""

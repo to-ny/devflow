@@ -17,14 +17,14 @@ fn emit_memory_result(app_handle: &AppHandle, result: &LoadResult) {
     match result {
         LoadResult::Loaded {
             path,
-            char_count,
+            byte_len,
             truncated,
         } => {
             let _ = app_handle.emit(
                 "memory-loaded",
                 MemoryLoadedPayload {
                     path: path.clone(),
-                    char_count: *char_count,
+                    byte_len: *byte_len,
                     truncated: *truncated,
                 },
             );

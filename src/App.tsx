@@ -1,4 +1,5 @@
 import { AppProvider, useApp } from "./context/AppContext";
+import { SessionProvider } from "./context/SessionContext";
 import { ChatProvider } from "./context/ChatContext";
 import { CommentsProvider } from "./context/CommentsContext";
 import { NavigationProvider } from "./context/NavigationContext";
@@ -15,11 +16,13 @@ function AppContent() {
 
   return (
     <NavigationProvider>
-      <ChatProvider projectPath={projectPath}>
-        <CommentsProvider>
-          <MainLayout />
-        </CommentsProvider>
-      </ChatProvider>
+      <SessionProvider projectPath={projectPath}>
+        <ChatProvider projectPath={projectPath}>
+          <CommentsProvider>
+            <MainLayout />
+          </CommentsProvider>
+        </ChatProvider>
+      </SessionProvider>
     </NavigationProvider>
   );
 }

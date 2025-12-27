@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use tauri::{AppHandle, Emitter};
 
 use super::service::ConfigService;
 use super::types::{ConfigChangedPayload, ProjectConfig, ProviderInfo};
+use crate::agent::{get_tool_descriptions, DEFAULT_SYSTEM_PROMPT};
 
 #[tauri::command]
 pub fn config_get_last_project() -> Result<Option<String>, String> {
@@ -68,6 +70,46 @@ pub fn config_save_project(
         .map_err(|e| e.to_string())?;
 
     // Emit event for listeners (agent marks itself stale, frontend refreshes)
+    let _ = app_handle.emit(
+        "config-changed",
+        ConfigChangedPayload {
+            project_path: project_path.clone(),
+        },
+    );
+
+    Ok(())
+}
+
+// Tool Descriptions (read-only, returns embedded defaults)
+
+#[tauri::command]
+pub fn config_get_tool_descriptions() -> HashMap<String, String> {
+    get_tool_descriptions()
+}
+
+// Default System Prompt Command (read-only, returns embedded default)
+
+#[tauri::command]
+pub fn config_get_default_system_prompt() -> String {
+    DEFAULT_SYSTEM_PROMPT.to_string()
+}
+
+// AGENTS.md Commands
+
+#[tauri::command]
+pub fn config_load_agents_md(project_path: String) -> Result<Option<String>, String> {
+    ConfigService::load_agents_md(Path::new(&project_path)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn config_save_agents_md(
+    app_handle: AppHandle,
+    project_path: String,
+    content: Option<String>,
+) -> Result<(), String> {
+    ConfigService::save_agents_md(Path::new(&project_path), content).map_err(|e| e.to_string())?;
+
+    // Emit event for agent to reload memory
     let _ = app_handle.emit(
         "config-changed",
         ConfigChangedPayload {

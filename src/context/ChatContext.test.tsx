@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
+import { SessionProvider } from "./SessionContext";
 import { ChatProvider, useChat } from "./ChatContext";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -41,7 +42,11 @@ function simulateEvent<T>(eventName: string, payload: T) {
 // Wrapper component for testing
 function createWrapper(projectPath: string | null) {
   return function Wrapper({ children }: { children: ReactNode }) {
-    return <ChatProvider projectPath={projectPath}>{children}</ChatProvider>;
+    return (
+      <SessionProvider projectPath={projectPath}>
+        <ChatProvider projectPath={projectPath}>{children}</ChatProvider>
+      </SessionProvider>
+    );
   };
 }
 

@@ -26,6 +26,8 @@ describe("Contract Tests", () => {
       },
       notifications: { on_complete: [], on_error: [] },
       search: { provider: "duckduckgo", max_results: 10 },
+      system_prompt: null,
+      tool_descriptions: null,
     };
 
     const roundTripped: ProjectConfig = JSON.parse(JSON.stringify(config));

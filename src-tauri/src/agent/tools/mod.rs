@@ -367,3 +367,52 @@ static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
 pub fn get_tool_definitions() -> Vec<ToolDefinition> {
     TOOL_DEFINITIONS.clone()
 }
+
+/// Returns a HashMap of tool names to their default descriptions (for settings UI)
+pub fn get_tool_descriptions() -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    map.insert("bash".to_string(), descriptions::BASH.to_string());
+    map.insert("read_file".to_string(), descriptions::READ_FILE.to_string());
+    map.insert(
+        "write_file".to_string(),
+        descriptions::WRITE_FILE.to_string(),
+    );
+    map.insert("edit_file".to_string(), descriptions::EDIT_FILE.to_string());
+    map.insert(
+        "multi_edit".to_string(),
+        descriptions::MULTI_EDIT.to_string(),
+    );
+    map.insert(
+        "list_directory".to_string(),
+        descriptions::LIST_DIRECTORY.to_string(),
+    );
+    map.insert("glob".to_string(), descriptions::GLOB.to_string());
+    map.insert("grep".to_string(), descriptions::GREP.to_string());
+    map.insert(
+        "notebook_read".to_string(),
+        descriptions::NOTEBOOK_READ.to_string(),
+    );
+    map.insert(
+        "notebook_edit".to_string(),
+        descriptions::NOTEBOOK_EDIT.to_string(),
+    );
+    map.insert("web_fetch".to_string(), descriptions::WEB_FETCH.to_string());
+    map.insert(
+        "search_web".to_string(),
+        descriptions::SEARCH_WEB.to_string(),
+    );
+    map.insert("todo_read".to_string(), descriptions::TODO_READ.to_string());
+    map.insert(
+        "todo_write".to_string(),
+        descriptions::TODO_WRITE.to_string(),
+    );
+    map.insert(
+        "dispatch_agent".to_string(),
+        descriptions::DISPATCH_AGENT.to_string(),
+    );
+    map.insert(
+        "submit_plan".to_string(),
+        descriptions::SUBMIT_PLAN.to_string(),
+    );
+    map
+}

@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { useNavigation } from "../context/NavigationContext";
-import { useChat } from "../context/ChatContext";
+import { useSession } from "../context/SessionContext";
 import "./BottomNav.css";
 
 function formatTokenCount(count: number): string {
@@ -12,18 +13,21 @@ function formatTokenCount(count: number): string {
   return count.toString();
 }
 
-function formatCharCount(count: number): string {
-  if (count >= 1_000) {
-    return `${(count / 1_000).toFixed(1)}k`;
+function formatByteLen(bytes: number): string {
+  if (bytes >= 1_000) {
+    return `${(bytes / 1_000).toFixed(1)}k`;
   }
-  return count.toString();
+  return bytes.toString();
 }
 
 export function BottomNav() {
   const { currentPage, navigate } = useNavigation();
-  const { sessionUsage, memoryInfo } = useChat();
+  const { sessionUsage, memoryInfo } = useSession();
 
-  const totalTokens = sessionUsage.input_tokens + sessionUsage.output_tokens;
+  const totalTokens = useMemo(
+    () => sessionUsage.input_tokens + sessionUsage.output_tokens,
+    [sessionUsage.input_tokens, sessionUsage.output_tokens],
+  );
   const hasUsage = totalTokens > 0;
 
   const showLeftIndicators = memoryInfo || hasUsage;
@@ -35,7 +39,7 @@ export function BottomNav() {
           {memoryInfo && (
             <div
               className={`memory-indicator ${memoryInfo.truncated ? "truncated" : ""}`}
-              title={`AGENTS.md loaded (${formatCharCount(memoryInfo.charCount)} chars)${memoryInfo.truncated ? " - truncated" : ""}`}
+              title={`AGENTS.md loaded (${formatByteLen(memoryInfo.byteLen)} bytes)${memoryInfo.truncated ? " - truncated" : ""}`}
             >
               <svg
                 viewBox="0 0 24 24"

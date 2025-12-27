@@ -23,12 +23,7 @@ import type {
   ToolEndPayload,
   ContentBlockStartPayload,
 } from "../types/agent";
-import type {
-  AgentUsagePayload,
-  UsageTotals,
-  MemoryLoadedPayload,
-  MemoryWarningPayload,
-} from "../types/generated";
+import { useSession } from "./SessionContext";
 
 const PROMPT_HISTORY_KEY = "devflow_prompt_history";
 const MAX_PROMPT_HISTORY = 50;
@@ -52,12 +47,6 @@ export interface QueuedMessage {
   status: "pending" | "sending" | "sent";
 }
 
-export interface MemoryInfo {
-  path: string;
-  charCount: number;
-  truncated: boolean;
-}
-
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -69,9 +58,6 @@ interface ChatState {
   messageQueue: QueuedMessage[];
   promptHistory: string[];
   pendingPlan: string | null;
-  sessionUsage: UsageTotals;
-  memoryInfo: MemoryInfo | null;
-  memoryWarning: string | null;
 }
 
 interface ChatContextValue extends ChatState {
@@ -79,7 +65,6 @@ interface ChatContextValue extends ChatState {
   cancelRequest: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
-  clearMemoryWarning: () => void;
   addToQueue: (content: string) => string;
   removeFromQueue: (id: string) => void;
   updateQueuedMessage: (id: string, content: string) => void;
@@ -100,7 +85,43 @@ function generateId(): string {
 }
 
 const CLEAR_PENDING_PLAN = { pendingPlan: null } as const;
-const INITIAL_USAGE: UsageTotals = { input_tokens: 0, output_tokens: 0 };
+
+/**
+ * Converts streaming blocks to finalized content blocks.
+ * @param blocks - The streaming blocks to convert
+ * @param appendCancelled - If true, appends cancellation message to text blocks
+ */
+function streamBlocksToContentBlocks(
+  blocks: StreamingBlock[],
+  appendCancelled = false,
+): ChatContentBlock[] {
+  const sorted = [...blocks].sort((a, b) => a.blockIndex - b.blockIndex);
+  const contentBlocks: ChatContentBlock[] = sorted.map(
+    (block): ChatContentBlock => {
+      if (block.type === "text") {
+        const text = block.text || "";
+        return {
+          type: "text",
+          text: appendCancelled ? text + "\n\n*[Cancelled by user]*" : text,
+        };
+      }
+      return {
+        type: "tool_use",
+        tool_use_id: block.toolUseId!,
+        tool_name: block.toolName!,
+        tool_input: block.toolInput,
+        output: block.output ?? null,
+        is_error: block.isError ?? null,
+      };
+    },
+  );
+
+  if (appendCancelled && !contentBlocks.some((b) => b.type === "text")) {
+    contentBlocks.push({ type: "text", text: "*[Cancelled by user]*" });
+  }
+
+  return contentBlocks;
+}
 
 function loadPromptHistory(): string[] {
   try {
@@ -129,7 +150,6 @@ function savePromptHistory(history: string[]): void {
 }
 
 function addToPromptHistory(history: string[], prompt: string): string[] {
-  // Remove duplicates and add to front
   const filtered = history.filter((p) => p !== prompt);
   const newHistory = [prompt, ...filtered].slice(0, MAX_PROMPT_HISTORY);
   savePromptHistory(newHistory);
@@ -137,6 +157,8 @@ function addToPromptHistory(history: string[], prompt: string): string[] {
 }
 
 export function ChatProvider({ children, projectPath }: ChatProviderProps) {
+  const { resetSession } = useSession();
+
   const [state, setState] = useState<ChatState>(() => ({
     messages: [],
     isLoading: false,
@@ -148,9 +170,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     messageQueue: [],
     promptHistory: loadPromptHistory(),
     ...CLEAR_PENDING_PLAN,
-    sessionUsage: INITIAL_USAGE,
-    memoryInfo: null,
-    memoryWarning: null,
   }));
 
   const isMounted = useRef(true);
@@ -170,8 +189,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   // Reset chat when project changes
   useEffect(() => {
-    // Fire-and-forget: backend may not be ready yet
-    invoke("reset_session_usage").catch(() => {});
     setState((prev) => ({
       ...prev,
       messages: [],
@@ -183,9 +200,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       statusText: "",
       messageQueue: [],
       ...CLEAR_PENDING_PLAN,
-      sessionUsage: INITIAL_USAGE,
-      memoryInfo: null,
-      memoryWarning: null,
     }));
   }, [projectPath]);
 
@@ -221,7 +235,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       } catch (err) {
         if (isMounted.current) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          // Don't show error for cancellation
           if (!errorMessage.includes("cancelled")) {
             setState((prev) => ({
               ...prev,
@@ -255,7 +268,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
       isProcessingQueue.current = true;
 
-      // Mark as sending
       setState((prev) => ({
         ...prev,
         messageQueue: prev.messageQueue.map((m) =>
@@ -263,10 +275,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         ),
       }));
 
-      // Send the message
       await sendMessageInternal(pendingMessage.content);
 
-      // Mark as sent and remove from queue
       setState((prev) => ({
         ...prev,
         messageQueue: prev.messageQueue.filter(
@@ -284,7 +294,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     async (content: string) => {
       if (!projectPath || !content.trim()) return;
 
-      // If already loading, add to queue
       if (state.isLoading) {
         if (state.messageQueue.length < MAX_QUEUED_MESSAGES) {
           setState((prev) => ({
@@ -313,7 +322,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       await invoke("agent_cancel");
       if (isMounted.current) {
         setState((prev) => {
-          // Save partial response as a message if there's any content
           if (prev.streamBlocks.length === 0) {
             return {
               ...prev,
@@ -324,38 +332,13 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
             };
           }
 
-          // Convert streaming blocks to content blocks
-          const contentBlocks: ChatContentBlock[] = prev.streamBlocks
-            .sort((a, b) => a.blockIndex - b.blockIndex)
-            .map((block): ChatContentBlock => {
-              if (block.type === "text") {
-                const text = block.text || "";
-                return {
-                  type: "text",
-                  text: text + "\n\n*[Cancelled by user]*",
-                };
-              } else {
-                return {
-                  type: "tool_use",
-                  tool_use_id: block.toolUseId!,
-                  tool_name: block.toolName!,
-                  tool_input: block.toolInput,
-                  output: block.output ?? null,
-                  is_error: block.isError ?? null,
-                };
-              }
-            });
-
-          // If no text block exists, add cancellation message
-          const hasTextBlock = contentBlocks.some((b) => b.type === "text");
-          if (!hasTextBlock) {
-            contentBlocks.push({ type: "text", text: "*[Cancelled by user]*" });
-          }
-
           const cancelledMessage: ChatMessage = {
             id: generateId(),
             role: "assistant",
-            content_blocks: contentBlocks,
+            content_blocks: streamBlocksToContentBlocks(
+              prev.streamBlocks,
+              true,
+            ),
           };
 
           return {
@@ -375,8 +358,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
   }, []);
 
   const clearMessages = useCallback(() => {
-    // Fire-and-forget: non-critical operation
-    invoke("reset_session_usage").catch(() => {});
+    resetSession();
     setState((prev) => ({
       ...prev,
       messages: [],
@@ -386,16 +368,11 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       agentStatus: "idle" as AgentStatus,
       statusText: "",
       messageQueue: [],
-      sessionUsage: INITIAL_USAGE,
     }));
-  }, []);
+  }, [resetSession]);
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
-  }, []);
-
-  const clearMemoryWarning = useCallback(() => {
-    setState((prev) => ({ ...prev, memoryWarning: null }));
   }, []);
 
   const addToQueue = useCallback((content: string): string => {
@@ -483,7 +460,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     const unlisteners: (() => void)[] = [];
 
     async function setupListeners() {
-      // Listen for content block start to create new streaming blocks
       const unlistenBlockStart = await listen<ContentBlockStartPayload>(
         "agent-content-block-start",
         (event) => {
@@ -536,28 +512,10 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         (event) => {
           if (cancelled || !isMounted.current) return;
           setState((prev) => {
-            // Convert streaming blocks to ChatContentBlocks
-            const contentBlocks: ChatContentBlock[] = prev.streamBlocks
-              .sort((a, b) => a.blockIndex - b.blockIndex)
-              .map((block): ChatContentBlock => {
-                if (block.type === "text") {
-                  return { type: "text", text: block.text || "" };
-                } else {
-                  return {
-                    type: "tool_use",
-                    tool_use_id: block.toolUseId!,
-                    tool_name: block.toolName!,
-                    tool_input: block.toolInput,
-                    output: block.output ?? null,
-                    is_error: block.isError ?? null,
-                  };
-                }
-              });
-
             const assistantMessage: ChatMessage = {
               id: event.payload.message_id,
               role: "assistant",
-              content_blocks: contentBlocks,
+              content_blocks: streamBlocksToContentBlocks(prev.streamBlocks),
             };
             return {
               ...prev,
@@ -604,12 +562,10 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         () => {
           if (cancelled || !isMounted.current) return;
           setState((prev) => {
-            // If already handled by cancelRequest, just update status
             if (!prev.isLoading) {
               return prev;
             }
 
-            // Save partial response as a message if there's any content
             if (prev.streamBlocks.length === 0) {
               return {
                 ...prev,
@@ -620,41 +576,13 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
               };
             }
 
-            // Convert streaming blocks to content blocks
-            const contentBlocks: ChatContentBlock[] = prev.streamBlocks
-              .sort((a, b) => a.blockIndex - b.blockIndex)
-              .map((block): ChatContentBlock => {
-                if (block.type === "text") {
-                  const text = block.text || "";
-                  return {
-                    type: "text",
-                    text: text + "\n\n*[Cancelled by user]*",
-                  };
-                } else {
-                  return {
-                    type: "tool_use",
-                    tool_use_id: block.toolUseId!,
-                    tool_name: block.toolName!,
-                    tool_input: block.toolInput,
-                    output: block.output ?? null,
-                    is_error: block.isError ?? null,
-                  };
-                }
-              });
-
-            // If no text block exists, add cancellation message
-            const hasTextBlock = contentBlocks.some((b) => b.type === "text");
-            if (!hasTextBlock) {
-              contentBlocks.push({
-                type: "text",
-                text: "*[Cancelled by user]*",
-              });
-            }
-
             const cancelledMessage: ChatMessage = {
               id: generateId(),
               role: "assistant",
-              content_blocks: contentBlocks,
+              content_blocks: streamBlocksToContentBlocks(
+                prev.streamBlocks,
+                true,
+              ),
             };
 
             return {
@@ -727,47 +655,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         },
       );
 
-      const unlistenUsage = await listen<AgentUsagePayload>(
-        "agent-usage",
-        (event) => {
-          if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            sessionUsage: {
-              input_tokens: event.payload.input_tokens,
-              output_tokens: event.payload.output_tokens,
-            },
-          }));
-        },
-      );
-
-      const unlistenMemoryLoaded = await listen<MemoryLoadedPayload>(
-        "memory-loaded",
-        (event) => {
-          if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            memoryInfo: {
-              path: event.payload.path,
-              charCount: event.payload.char_count,
-              truncated: event.payload.truncated,
-            },
-            memoryWarning: null,
-          }));
-        },
-      );
-
-      const unlistenMemoryWarning = await listen<MemoryWarningPayload>(
-        "memory-warning",
-        (event) => {
-          if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            memoryWarning: event.payload.message,
-          }));
-        },
-      );
-
       if (cancelled) {
         unlistenBlockStart();
         unlistenChunk();
@@ -778,9 +665,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenToolStart();
         unlistenToolEnd();
         unlistenPlanReady();
-        unlistenUsage();
-        unlistenMemoryLoaded();
-        unlistenMemoryWarning();
       } else {
         unlisteners.push(
           unlistenBlockStart,
@@ -792,9 +676,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           unlistenToolStart,
           unlistenToolEnd,
           unlistenPlanReady,
-          unlistenUsage,
-          unlistenMemoryLoaded,
-          unlistenMemoryWarning,
         );
       }
     }
@@ -815,7 +696,6 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         cancelRequest,
         clearMessages,
         clearError,
-        clearMemoryWarning,
         addToQueue,
         removeFromQueue,
         updateQueuedMessage,

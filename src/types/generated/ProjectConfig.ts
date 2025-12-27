@@ -5,4 +5,12 @@ import type { NotificationsConfig } from "./NotificationsConfig";
 import type { PromptsConfig } from "./PromptsConfig";
 import type { SearchConfig } from "./SearchConfig";
 
-export type ProjectConfig = { agent: AgentConfig, prompts: PromptsConfig, execution: ExecutionConfig, notifications: NotificationsConfig, search: SearchConfig, };
+export type ProjectConfig = { agent: AgentConfig, execution: ExecutionConfig, search: SearchConfig, notifications: NotificationsConfig, prompts: PromptsConfig, 
+/**
+ * Custom system prompt (None = use default)
+ */
+system_prompt: string | null, 
+/**
+ * Custom tool descriptions (None = use defaults)
+ */
+tool_descriptions: { [key in string]?: string } | null, };
