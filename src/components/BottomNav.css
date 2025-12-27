@@ -12,25 +12,45 @@
   z-index: 100;
 }
 
-.token-counter {
+.bottom-nav-left {
   position: absolute;
   left: var(--spacing-md);
   display: flex;
   align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.memory-indicator,
+.token-counter {
+  display: flex;
+  align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
-  color: var(--color-text-muted);
   font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
   cursor: default;
 }
 
+.memory-indicator {
+  color: var(--color-accent);
+}
+
+.memory-indicator.truncated {
+  color: var(--color-warning, #f59e0b);
+}
+
+.token-counter {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-indicator svg,
 .token-counter svg {
   width: 14px;
   height: 14px;
   opacity: 0.7;
 }
 
+.memory-indicator span,
 .token-counter span {
   font-weight: 500;
 }

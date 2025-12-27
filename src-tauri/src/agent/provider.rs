@@ -15,6 +15,13 @@ pub struct HeadlessResult {
     pub tool_calls_made: u32,
 }
 
+/// Runtime context for agent execution
+pub struct ExecutionContext {
+    pub session: SessionState,
+    pub cancel_token: CancellationToken,
+    pub usage_tracker: Arc<SessionUsageTracker>,
+}
+
 #[async_trait]
 pub trait ProviderAdapter: Send + Sync {
     /// Send a message with full UI integration (events, streaming)
@@ -22,22 +29,19 @@ pub trait ProviderAdapter: Send + Sync {
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
-        session: SessionState,
+        memory: Option<String>,
+        ctx: ExecutionContext,
         app_handle: AppHandle,
-        cancel_token: CancellationToken,
-        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<(), AgentError>;
 
     /// Run headless without UI - for sub-agents
-    /// Returns the final text response after tool execution loop
     async fn run_headless(
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
+        memory: Option<String>,
         tools: Vec<ToolDefinition>,
-        session: SessionState,
-        cancel_token: CancellationToken,
-        usage_tracker: Arc<SessionUsageTracker>,
+        ctx: ExecutionContext,
     ) -> Result<HeadlessResult, AgentError>;
 
     fn model(&self) -> &str;

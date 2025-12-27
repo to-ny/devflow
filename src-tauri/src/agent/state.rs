@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use super::error::AgentError;
+use super::memory::{LoadResult, MemoryState};
 use super::provider::ProviderAdapter;
 use super::providers::create_provider_adapter;
 use super::tools::SessionState;
@@ -15,6 +16,7 @@ pub struct AgentState {
     pub is_running: bool,
     pub config_stale: bool,
     pub session: SessionState,
+    pub memory: MemoryState,
 }
 
 impl AgentState {
@@ -26,6 +28,7 @@ impl AgentState {
             is_running: false,
             config_stale: false,
             session: SessionState::new(),
+            memory: MemoryState::new(),
         }
     }
 
@@ -43,13 +46,27 @@ impl AgentState {
             || self.project_path.as_deref() != Some(project_path)
     }
 
-    pub fn initialize(&mut self, project_path: &str) -> Result<(), AgentError> {
+    pub fn initialize(&mut self, project_path: &str) -> Result<LoadResult, AgentError> {
         let path = Path::new(project_path);
         let adapter = create_provider_adapter(path)?;
         self.adapter = Some(adapter);
         self.project_path = Some(project_path.to_string());
         self.config_stale = false;
-        Ok(())
+
+        let (memory, result) = MemoryState::load(path);
+        self.memory = memory;
+        Ok(result)
+    }
+
+    pub fn reload_memory_if_changed(&mut self) -> Option<LoadResult> {
+        self.project_path
+            .as_ref()
+            .map(Path::new)
+            .and_then(|path| self.memory.reload_if_changed(path))
+    }
+
+    pub fn get_memory_for_injection(&self) -> Option<String> {
+        self.memory.format_for_injection()
     }
 
     pub fn get_adapter(&self) -> Option<Arc<dyn ProviderAdapter>> {
@@ -81,6 +98,7 @@ impl AgentState {
         self.project_path = None;
         self.config_stale = false;
         self.session = SessionState::new();
+        self.memory = MemoryState::new();
     }
 }
 

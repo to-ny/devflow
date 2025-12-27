@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::agent::error::AgentError;
-use crate::agent::provider::{HeadlessResult, ProviderAdapter};
+use crate::agent::provider::{ExecutionContext, HeadlessResult, ProviderAdapter};
 use crate::agent::tools::{get_tool_definitions, SessionState};
 use crate::agent::types::{
     AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
@@ -564,15 +564,19 @@ impl ProviderAdapter for AnthropicAdapter {
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
-        session: SessionState,
+        memory: Option<String>,
+        ctx: ExecutionContext,
         app_handle: AppHandle,
-        cancel_token: CancellationToken,
-        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<(), AgentError> {
         let anthropic_messages: Vec<AnthropicMessage> =
             messages.iter().map(AnthropicMessage::from).collect();
 
-        let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
+        let system = build_system_prompt(
+            self.app_system_prompt,
+            &self.prompts,
+            system_prompt,
+            memory.as_deref(),
+        );
 
         let message_id = Uuid::new_v4().to_string();
 
@@ -582,10 +586,10 @@ impl ProviderAdapter for AnthropicAdapter {
             .execute_tool_loop(
                 anthropic_messages,
                 Some(system),
-                session,
+                ctx.session,
                 &app_handle,
-                &cancel_token,
-                &usage_tracker,
+                &ctx.cancel_token,
+                &ctx.usage_tracker,
             )
             .await;
 
@@ -628,18 +632,22 @@ impl ProviderAdapter for AnthropicAdapter {
         &self,
         messages: Vec<ChatMessage>,
         system_prompt: Option<String>,
+        memory: Option<String>,
         tools: Vec<ToolDefinition>,
-        session: SessionState,
-        cancel_token: CancellationToken,
-        usage_tracker: Arc<SessionUsageTracker>,
+        ctx: ExecutionContext,
     ) -> Result<HeadlessResult, AgentError> {
-        let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
+        let system = build_system_prompt(
+            self.app_system_prompt,
+            &self.prompts,
+            system_prompt,
+            memory.as_deref(),
+        );
         let executor = create_executor(
             &self.project_path,
             &self.execution,
-            session,
-            cancel_token.clone(),
-            Arc::clone(&usage_tracker),
+            ctx.session,
+            ctx.cancel_token.clone(),
+            Arc::clone(&ctx.usage_tracker),
         );
 
         run_headless_loop(
@@ -650,8 +658,8 @@ impl ProviderAdapter for AnthropicAdapter {
                 tools,
                 executor: &executor,
                 max_iterations: self.execution.max_tool_iterations,
-                cancel_token: &cancel_token,
-                usage_tracker,
+                cancel_token: &ctx.cancel_token,
+                usage_tracker: ctx.usage_tracker,
             },
         )
         .await

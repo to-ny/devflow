@@ -196,3 +196,17 @@ pub struct AgentCancelledPayload {
 pub struct PlanReadyPayload {
     pub plan: String,
 }
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct MemoryLoadedPayload {
+    pub path: String,
+    pub char_count: u32,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct MemoryWarningPayload {
+    pub message: String,
+}

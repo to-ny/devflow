@@ -72,10 +72,16 @@ pub(crate) fn build_system_prompt(
     app_system_prompt: &str,
     prompts: &PromptsConfig,
     custom: Option<String>,
+    memory: Option<&str>,
 ) -> String {
     let mut parts = Vec::new();
 
     parts.push(app_system_prompt.to_string());
+
+    // Memory content (AGENTS.md) comes right after base prompt
+    if let Some(memory_content) = memory {
+        parts.push(memory_content.to_string());
+    }
 
     if !prompts.pre.is_empty() {
         parts.push(prompts.pre.clone());
@@ -329,7 +335,7 @@ mod tests {
     #[test]
     fn test_build_system_prompt_includes_app_prompt() {
         let prompts = PromptsConfig::default();
-        let result = build_system_prompt("App prompt", &prompts, None);
+        let result = build_system_prompt("App prompt", &prompts, None, None);
         assert_eq!(result, "App prompt");
     }
 
@@ -339,10 +345,29 @@ mod tests {
             pre: "Pre prompt".to_string(),
             post: "Post prompt".to_string(),
         };
-        let result = build_system_prompt("App prompt", &prompts, Some("Custom prompt".to_string()));
+        let result = build_system_prompt(
+            "App prompt",
+            &prompts,
+            Some("Custom prompt".to_string()),
+            None,
+        );
         assert_eq!(
             result,
             "App prompt\n\nPre prompt\n\nCustom prompt\n\nPost prompt"
+        );
+    }
+
+    #[test]
+    fn test_build_system_prompt_with_memory() {
+        let prompts = PromptsConfig {
+            pre: "Pre prompt".to_string(),
+            post: "Post prompt".to_string(),
+        };
+        let memory = "<project-memory source=\"AGENTS.md\">\nTest memory\n</project-memory>";
+        let result = build_system_prompt("App prompt", &prompts, None, Some(memory));
+        assert_eq!(
+            result,
+            "App prompt\n\n<project-memory source=\"AGENTS.md\">\nTest memory\n</project-memory>\n\nPre prompt\n\nPost prompt"
         );
     }
 
@@ -352,7 +377,7 @@ mod tests {
             pre: "".to_string(),
             post: "Post prompt".to_string(),
         };
-        let result = build_system_prompt("App prompt", &prompts, None);
+        let result = build_system_prompt("App prompt", &prompts, None, None);
         assert_eq!(result, "App prompt\n\nPost prompt");
     }
 
@@ -362,7 +387,7 @@ mod tests {
             pre: "Pre".to_string(),
             post: "".to_string(),
         };
-        let result = build_system_prompt("App", &prompts, None);
+        let result = build_system_prompt("App", &prompts, None, None);
         assert!(result.contains("\n\n"));
         assert_eq!(result, "App\n\nPre");
     }

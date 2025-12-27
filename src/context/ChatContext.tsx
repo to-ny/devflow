@@ -23,7 +23,12 @@ import type {
   ToolEndPayload,
   ContentBlockStartPayload,
 } from "../types/agent";
-import type { AgentUsagePayload, UsageTotals } from "../types/generated";
+import type {
+  AgentUsagePayload,
+  UsageTotals,
+  MemoryLoadedPayload,
+  MemoryWarningPayload,
+} from "../types/generated";
 
 const PROMPT_HISTORY_KEY = "devflow_prompt_history";
 const MAX_PROMPT_HISTORY = 50;
@@ -47,6 +52,12 @@ export interface QueuedMessage {
   status: "pending" | "sending" | "sent";
 }
 
+export interface MemoryInfo {
+  path: string;
+  charCount: number;
+  truncated: boolean;
+}
+
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -59,6 +70,8 @@ interface ChatState {
   promptHistory: string[];
   pendingPlan: string | null;
   sessionUsage: UsageTotals;
+  memoryInfo: MemoryInfo | null;
+  memoryWarning: string | null;
 }
 
 interface ChatContextValue extends ChatState {
@@ -66,6 +79,7 @@ interface ChatContextValue extends ChatState {
   cancelRequest: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  clearMemoryWarning: () => void;
   addToQueue: (content: string) => string;
   removeFromQueue: (id: string) => void;
   updateQueuedMessage: (id: string, content: string) => void;
@@ -135,6 +149,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     promptHistory: loadPromptHistory(),
     ...CLEAR_PENDING_PLAN,
     sessionUsage: INITIAL_USAGE,
+    memoryInfo: null,
+    memoryWarning: null,
   }));
 
   const isMounted = useRef(true);
@@ -168,6 +184,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       messageQueue: [],
       ...CLEAR_PENDING_PLAN,
       sessionUsage: INITIAL_USAGE,
+      memoryInfo: null,
+      memoryWarning: null,
     }));
   }, [projectPath]);
 
@@ -374,6 +392,10 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
+  }, []);
+
+  const clearMemoryWarning = useCallback(() => {
+    setState((prev) => ({ ...prev, memoryWarning: null }));
   }, []);
 
   const addToQueue = useCallback((content: string): string => {
@@ -719,6 +741,33 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         },
       );
 
+      const unlistenMemoryLoaded = await listen<MemoryLoadedPayload>(
+        "memory-loaded",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => ({
+            ...prev,
+            memoryInfo: {
+              path: event.payload.path,
+              charCount: event.payload.char_count,
+              truncated: event.payload.truncated,
+            },
+            memoryWarning: null,
+          }));
+        },
+      );
+
+      const unlistenMemoryWarning = await listen<MemoryWarningPayload>(
+        "memory-warning",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => ({
+            ...prev,
+            memoryWarning: event.payload.message,
+          }));
+        },
+      );
+
       if (cancelled) {
         unlistenBlockStart();
         unlistenChunk();
@@ -730,6 +779,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenToolEnd();
         unlistenPlanReady();
         unlistenUsage();
+        unlistenMemoryLoaded();
+        unlistenMemoryWarning();
       } else {
         unlisteners.push(
           unlistenBlockStart,
@@ -742,6 +793,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           unlistenToolEnd,
           unlistenPlanReady,
           unlistenUsage,
+          unlistenMemoryLoaded,
+          unlistenMemoryWarning,
         );
       }
     }
@@ -762,6 +815,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         cancelRequest,
         clearMessages,
         clearError,
+        clearMemoryWarning,
         addToQueue,
         removeFromQueue,
         updateQueuedMessage,

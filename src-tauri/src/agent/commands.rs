@@ -2,12 +2,43 @@ use std::sync::{Arc, PoisonError, RwLock};
 
 use tauri::{AppHandle, Emitter, State};
 
+use super::memory::LoadResult;
 use super::state::AgentState;
-use super::types::{AgentStatus, AgentStatusPayload, ChatMessage};
+use super::types::{
+    AgentStatus, AgentStatusPayload, ChatMessage, MemoryLoadedPayload, MemoryWarningPayload,
+};
 use super::usage::{SessionUsageTracker, UsageTotals};
 
 fn lock_error<T>(_: PoisonError<T>) -> String {
     "Lock poisoned".to_string()
+}
+
+fn emit_memory_result(app_handle: &AppHandle, result: &LoadResult) {
+    match result {
+        LoadResult::Loaded {
+            path,
+            char_count,
+            truncated,
+        } => {
+            let _ = app_handle.emit(
+                "memory-loaded",
+                MemoryLoadedPayload {
+                    path: path.clone(),
+                    char_count: *char_count,
+                    truncated: *truncated,
+                },
+            );
+        }
+        LoadResult::NotFound => {}
+        LoadResult::Error(message) => {
+            let _ = app_handle.emit(
+                "memory-warning",
+                MemoryWarningPayload {
+                    message: message.clone(),
+                },
+            );
+        }
+    }
 }
 
 #[tauri::command]
@@ -20,7 +51,7 @@ pub async fn agent_send_message(
     system_prompt: Option<String>,
 ) -> Result<(), String> {
     // Use read lock to check state, then write lock to initialize and start
-    let (adapter, session, cancel_token) = {
+    let (adapter, session, cancel_token, memory) = {
         // First, check with read lock
         let needs_reload = {
             let state_guard = state.read().map_err(lock_error)?;
@@ -39,29 +70,35 @@ pub async fn agent_send_message(
         }
 
         if needs_reload {
-            state_guard
+            let load_result = state_guard
                 .initialize(&project_path)
                 .map_err(|e| e.to_string())?;
+            emit_memory_result(&app_handle, &load_result);
+        } else {
+            // Check if memory file has changed
+            if let Some(reload_result) = state_guard.reload_memory_if_changed() {
+                emit_memory_result(&app_handle, &reload_result);
+            }
         }
 
         let adapter = state_guard
             .get_adapter()
             .ok_or_else(|| "Agent not initialized".to_string())?;
         let session = state_guard.get_session();
+        let memory = state_guard.get_memory_for_injection();
         let token = state_guard.start_run();
-        (adapter, session, token)
+        (adapter, session, token, memory)
     };
 
-    let tracker = Arc::clone(&*usage_tracker);
+    use super::provider::ExecutionContext;
+
+    let ctx = ExecutionContext {
+        session,
+        cancel_token,
+        usage_tracker: Arc::clone(&*usage_tracker),
+    };
     let result = adapter
-        .send_message(
-            messages,
-            system_prompt,
-            session,
-            app_handle,
-            cancel_token,
-            tracker,
-        )
+        .send_message(messages, system_prompt, memory, ctx, app_handle)
         .await;
 
     // Mark run as finished

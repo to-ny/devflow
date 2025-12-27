@@ -21,6 +21,8 @@ export type { ChatContentBlock } from "./ChatContentBlock";
 export type { ChatMessage } from "./ChatMessage";
 export type { ContentBlockStartPayload } from "./ContentBlockStartPayload";
 export type { ContentBlockType } from "./ContentBlockType";
+export type { MemoryLoadedPayload } from "./MemoryLoadedPayload";
+export type { MemoryWarningPayload } from "./MemoryWarningPayload";
 export type { MessageRole } from "./MessageRole";
 export type { PlanReadyPayload } from "./PlanReadyPayload";
 export type { ToolEndPayload } from "./ToolEndPayload";

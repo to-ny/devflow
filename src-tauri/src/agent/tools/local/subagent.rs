@@ -62,14 +62,20 @@ pub async fn execute_subagent(
 
     let cancel_token = parent_token.child_token();
 
+    use crate::agent::provider::ExecutionContext;
+
+    let ctx = ExecutionContext {
+        session,
+        cancel_token,
+        usage_tracker,
+    };
     let result = provider
         .run_headless(
             messages,
             Some(system_prompt),
+            None, // Sub-agents don't use project memory
             tools,
-            session,
-            cancel_token,
-            usage_tracker,
+            ctx,
         )
         .await?;
 
