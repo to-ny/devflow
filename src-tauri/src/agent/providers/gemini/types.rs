@@ -96,15 +96,33 @@ impl From<&ToolDefinition> for FunctionDeclaration {
 
 impl From<&ChatMessage> for GeminiContent {
     fn from(msg: &ChatMessage) -> Self {
-        Self {
-            role: match msg.role {
-                MessageRole::User => "user".to_string(),
-                MessageRole::Assistant => "model".to_string(),
-            },
-            parts: vec![GeminiPart::Text {
-                text: msg.content.clone(),
-            }],
-        }
+        use crate::agent::types::ChatContentBlock;
+
+        let role = match msg.role {
+            MessageRole::User => "user".to_string(),
+            MessageRole::Assistant => "model".to_string(),
+        };
+
+        // Convert ChatContentBlocks to Gemini parts
+        let parts: Vec<GeminiPart> = msg
+            .content_blocks
+            .iter()
+            .map(|block| match block {
+                ChatContentBlock::Text { text } => GeminiPart::Text { text: text.clone() },
+                ChatContentBlock::ToolUse {
+                    tool_name,
+                    tool_input,
+                    ..
+                } => GeminiPart::FunctionCall {
+                    function_call: FunctionCall {
+                        name: tool_name.clone(),
+                        args: tool_input.clone(),
+                    },
+                },
+            })
+            .collect();
+
+        Self { role, parts }
     }
 }
 
@@ -182,11 +200,13 @@ pub struct GeminiError {
 
 // === Streaming State ===
 
+/// Accumulates streamed response chunks into complete content blocks.
 #[derive(Debug, Default)]
 pub struct StreamedResponse {
     pub text_content: String,
     pub function_calls: Vec<FunctionCall>,
     pub finish_reason: Option<String>,
+    pub has_text_block: bool,
 }
 
 impl StreamedResponse {
@@ -194,12 +214,19 @@ impl StreamedResponse {
         Self::default()
     }
 
-    pub fn append_text(&mut self, text: &str) {
+    pub fn append_text(&mut self, text: &str) -> u32 {
+        if !self.has_text_block {
+            self.has_text_block = true;
+        }
         self.text_content.push_str(text);
+        0 // Text is always block 0
     }
 
-    pub fn add_function_call(&mut self, call: FunctionCall) {
+    pub fn add_function_call(&mut self, call: FunctionCall) -> u32 {
+        let block_index =
+            if self.has_text_block { 1 } else { 0 } + self.function_calls.len() as u32;
         self.function_calls.push(call);
+        block_index
     }
 
     pub fn set_finish_reason(&mut self, reason: String) {
@@ -208,5 +235,9 @@ impl StreamedResponse {
 
     pub fn has_function_calls(&self) -> bool {
         !self.function_calls.is_empty()
+    }
+
+    pub fn block_count(&self) -> u32 {
+        (if self.has_text_block { 1 } else { 0 }) + self.function_calls.len() as u32
     }
 }

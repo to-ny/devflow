@@ -15,7 +15,7 @@ use crate::agent::provider::{HeadlessResult, ProviderAdapter};
 use crate::agent::tools::{get_tool_definitions, SessionState};
 use crate::agent::types::{
     AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
-    ChatMessage, ToolDefinition,
+    ChatMessage, ContentBlockStartPayload, ContentBlockType, ToolDefinition,
 };
 use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
@@ -25,7 +25,7 @@ use super::{
         HeadlessResponse, HeadlessStreamer, ToolCall as HeadlessToolCall,
         ToolResult as HeadlessToolResult,
     },
-    run_headless_loop, ToolCall,
+    run_headless_loop, StreamContext, StreamingState, ToolCall,
 };
 use types::{
     AnthropicErrorResponse, AnthropicEvent, AnthropicMessage, AnthropicRequest, ContentBlock,
@@ -71,10 +71,9 @@ impl AnthropicAdapter {
         &self,
         messages: &[AnthropicMessage],
         system: Option<String>,
-        app_handle: &AppHandle,
-        cancel_token: &CancellationToken,
+        ctx: &StreamContext<'_>,
     ) -> Result<StreamedResponse, AgentError> {
-        if cancel_token.is_cancelled() {
+        if ctx.cancel_token.is_cancelled() {
             return Err(AgentError::Cancelled);
         }
 
@@ -89,7 +88,7 @@ impl AnthropicAdapter {
             tools: Some(tools),
         };
 
-        emit_status(app_handle, AgentStatus::Thinking, None);
+        emit_status(ctx.app_handle, AgentStatus::Thinking, None);
 
         let response = self
             .client
@@ -117,12 +116,12 @@ impl AnthropicAdapter {
         let mut first_text_chunk = true;
 
         loop {
-            if cancel_token.is_cancelled() {
+            if ctx.cancel_token.is_cancelled() {
                 return Err(AgentError::Cancelled);
             }
 
             tokio::select! {
-                _ = cancel_token.cancelled() => {
+                _ = ctx.cancel_token.cancelled() => {
                     return Err(AgentError::Cancelled);
                 }
                 chunk_result = stream.next() => {
@@ -134,10 +133,10 @@ impl AnthropicAdapter {
                                 let event_data = buffer[..event_end].to_string();
                                 buffer = buffer[event_end + 2..].to_string();
 
-                                let is_text = self.process_sse_event(&event_data, app_handle, &mut streamed);
+                                let is_text = self.process_sse_event(&event_data, ctx, &mut streamed);
 
                                 if is_text && first_text_chunk {
-                                    emit_status(app_handle, AgentStatus::Streaming, None);
+                                    emit_status(ctx.app_handle, AgentStatus::Streaming, None);
                                     first_text_chunk = false;
                                 }
                             }
@@ -157,7 +156,7 @@ impl AnthropicAdapter {
     fn process_sse_event(
         &self,
         event_data: &str,
-        app_handle: &AppHandle,
+        ctx: &StreamContext<'_>,
         streamed: &mut StreamedResponse,
     ) -> bool {
         let mut data = None;
@@ -185,14 +184,34 @@ impl AnthropicAdapter {
                 index,
                 content_block,
             } => {
-                streamed.on_content_block_start(index, content_block);
+                streamed.on_content_block_start(index, content_block.clone());
+
+                let global_index = ctx.block_offset + index;
+                let block_type = match &content_block {
+                    ContentBlock::Text { .. } => ContentBlockType::Text,
+                    ContentBlock::ToolUse { id, name, .. } => ContentBlockType::ToolUse {
+                        tool_use_id: id.clone(),
+                        tool_name: name.clone(),
+                    },
+                    ContentBlock::ToolResult { .. } => return false,
+                };
+
+                let _ = ctx.app_handle.emit(
+                    "agent-content-block-start",
+                    ContentBlockStartPayload {
+                        block_index: global_index,
+                        block_type,
+                    },
+                );
             }
             AnthropicEvent::ContentBlockDelta { index, delta } => {
                 if let ContentDelta::TextDelta { ref text } = delta {
-                    let _ = app_handle.emit(
+                    let global_index = ctx.block_offset + index;
+                    let _ = ctx.app_handle.emit(
                         "agent-chunk",
                         AgentChunkPayload {
                             delta: text.clone(),
+                            block_index: global_index,
                         },
                     );
                     is_text_delta = true;
@@ -206,7 +225,7 @@ impl AnthropicAdapter {
                 streamed.on_message_delta(delta);
             }
             AnthropicEvent::Error { error } => {
-                let _ = app_handle.emit(
+                let _ = ctx.app_handle.emit(
                     "agent-error",
                     AgentErrorPayload {
                         error: error.message,
@@ -236,20 +255,19 @@ impl AnthropicAdapter {
         let mut conversation = initial_messages;
         let max_iterations = self.execution.max_tool_iterations;
         let mut iteration = 0u32;
+        let mut streaming = StreamingState::new();
 
         loop {
             if cancel_token.is_cancelled() {
                 return Err(AgentError::Cancelled);
             }
 
+            let ctx = streaming.create_context(app_handle, cancel_token);
             let response = self
-                .stream_response(
-                    &conversation,
-                    system_prompt.clone(),
-                    app_handle,
-                    cancel_token,
-                )
+                .stream_response(&conversation, system_prompt.clone(), &ctx)
                 .await?;
+
+            streaming.advance(response.block_count());
 
             if !response.has_tool_use() {
                 return Ok(response.stop_reason);
@@ -266,12 +284,14 @@ impl AnthropicAdapter {
             let tool_calls: Vec<ToolCall> = response
                 .content_blocks
                 .iter()
-                .filter_map(|block| {
+                .enumerate()
+                .filter_map(|(index, block)| {
                     if let ContentBlock::ToolUse { id, name, input } = block {
                         Some(ToolCall {
                             id: id.clone(),
                             name: name.clone(),
                             input: input.clone(),
+                            block_index: ctx.block_offset + index as u32,
                         })
                     } else {
                         None

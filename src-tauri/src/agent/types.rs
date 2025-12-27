@@ -10,16 +10,22 @@ pub struct ToolDefinition {
     pub input_schema: serde_json::Value,
 }
 
-/// Tool execution record for message history
+/// Ordered content block within a message (text or tool use).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
-pub struct ToolExecution {
-    pub tool_use_id: String,
-    pub tool_name: String,
-    #[ts(type = "unknown")]
-    pub tool_input: serde_json::Value,
-    pub output: Option<String>,
-    pub is_error: Option<bool>,
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ChatContentBlock {
+    Text {
+        text: String,
+    },
+    ToolUse {
+        tool_use_id: String,
+        tool_name: String,
+        #[ts(type = "unknown")]
+        tool_input: serde_json::Value,
+        output: Option<String>,
+        is_error: Option<bool>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -27,9 +33,7 @@ pub struct ToolExecution {
 pub struct ChatMessage {
     pub id: String,
     pub role: MessageRole,
-    pub content: String,
-    #[ts(optional)]
-    pub tool_executions: Option<Vec<ToolExecution>>,
+    pub content_blocks: Vec<ChatContentBlock>,
 }
 
 impl ChatMessage {
@@ -37,18 +41,28 @@ impl ChatMessage {
         Self {
             id: Uuid::new_v4().to_string(),
             role,
-            content,
-            tool_executions: None,
+            content_blocks: vec![ChatContentBlock::Text { text: content }],
         }
     }
 
-    pub fn with_tools(role: MessageRole, content: String, tools: Vec<ToolExecution>) -> Self {
+    pub fn with_blocks(role: MessageRole, blocks: Vec<ChatContentBlock>) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             role,
-            content,
-            tool_executions: if tools.is_empty() { None } else { Some(tools) },
+            content_blocks: blocks,
         }
+    }
+
+    /// Get concatenated text content from all text blocks
+    pub fn get_text(&self) -> String {
+        self.content_blocks
+            .iter()
+            .filter_map(|block| match block {
+                ChatContentBlock::Text { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("")
     }
 }
 
@@ -64,6 +78,7 @@ pub enum MessageRole {
 #[ts(export)]
 pub struct AgentChunkPayload {
     pub delta: String,
+    pub block_index: u32,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -86,6 +101,7 @@ pub struct ToolStartPayload {
     pub tool_name: String,
     #[ts(type = "unknown")]
     pub tool_input: serde_json::Value,
+    pub block_index: u32,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -94,6 +110,25 @@ pub struct ToolEndPayload {
     pub tool_use_id: String,
     pub output: String,
     pub is_error: bool,
+    pub block_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ContentBlockStartPayload {
+    pub block_index: u32,
+    pub block_type: ContentBlockType,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ContentBlockType {
+    Text,
+    ToolUse {
+        tool_use_id: String,
+        tool_name: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

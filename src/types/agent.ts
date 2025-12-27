@@ -7,10 +7,12 @@ export type {
   AgentErrorPayload,
   AgentStatus,
   AgentStatusPayload,
+  ChatContentBlock,
   ChatMessage,
+  ContentBlockStartPayload,
+  ContentBlockType,
   MessageRole,
   PlanReadyPayload,
   ToolEndPayload,
-  ToolExecution,
   ToolStartPayload,
 } from "./generated";

@@ -12,6 +12,7 @@ import type {
   ToolStartPayload,
   ToolEndPayload,
   PlanReadyPayload,
+  ContentBlockStartPayload,
 } from "../types/agent";
 
 type EventCallback<T> = (event: { payload: T }) => void;
@@ -73,8 +74,7 @@ describe("ChatProvider", () => {
       expect(result.current.messages).toEqual([]);
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeNull();
-      expect(result.current.streamContent).toBe("");
-      expect(result.current.toolExecutions).toEqual([]);
+      expect(result.current.streamBlocks).toEqual([]);
       expect(result.current.agentStatus).toBe("idle");
       expect(result.current.messageQueue).toEqual([]);
       expect(result.current.pendingPlan).toBeNull();
@@ -137,7 +137,7 @@ describe("ChatProvider", () => {
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: "user",
-            content: "Hello, AI!",
+            content_blocks: [{ type: "text", text: "Hello, AI!" }],
           }),
         ]),
         systemPrompt: null,
@@ -155,7 +155,9 @@ describe("ChatProvider", () => {
 
       expect(result.current.messages).toHaveLength(1);
       expect(result.current.messages[0].role).toBe("user");
-      expect(result.current.messages[0].content).toBe("Test message");
+      expect(result.current.messages[0].content_blocks).toEqual([
+        { type: "text", text: "Test message" },
+      ]);
     });
 
     it("sets loading state to true while sending", async () => {
@@ -308,17 +310,31 @@ describe("ChatProvider", () => {
         expect(eventListeners.has("agent-chunk")).toBe(true);
       });
 
+      // First, start a text block
       act(() => {
-        simulateEvent<AgentChunkPayload>("agent-chunk", { delta: "Hello " });
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: { type: "text" },
+        });
       });
 
-      expect(result.current.streamContent).toBe("Hello ");
-
       act(() => {
-        simulateEvent<AgentChunkPayload>("agent-chunk", { delta: "World!" });
+        simulateEvent<AgentChunkPayload>("agent-chunk", {
+          delta: "Hello ",
+          block_index: 0,
+        });
       });
 
-      expect(result.current.streamContent).toBe("Hello World!");
+      expect(result.current.streamBlocks[0].text).toBe("Hello ");
+
+      act(() => {
+        simulateEvent<AgentChunkPayload>("agent-chunk", {
+          delta: "World!",
+          block_index: 0,
+        });
+      });
+
+      expect(result.current.streamBlocks[0].text).toBe("Hello World!");
     });
   });
 
@@ -343,10 +359,18 @@ describe("ChatProvider", () => {
         expect(result.current.isLoading).toBe(true);
       });
 
-      // Simulate streaming
+      // Simulate streaming - first start a text block
+      act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: { type: "text" },
+        });
+      });
+
       act(() => {
         simulateEvent<AgentChunkPayload>("agent-chunk", {
           delta: "Response content",
+          block_index: 0,
         });
       });
 
@@ -364,8 +388,10 @@ describe("ChatProvider", () => {
 
       expect(result.current.messages).toHaveLength(2); // user + assistant
       expect(result.current.messages[1].role).toBe("assistant");
-      expect(result.current.messages[1].content).toBe("Response content");
-      expect(result.current.streamContent).toBe("");
+      expect(result.current.messages[1].content_blocks).toEqual([
+        { type: "text", text: "Response content" },
+      ]);
+      expect(result.current.streamBlocks).toEqual([]);
       expect(result.current.agentStatus).toBe("idle");
     });
   });
@@ -446,10 +472,18 @@ describe("ChatProvider", () => {
         expect(result.current.isLoading).toBe(true);
       });
 
-      // Stream some content
+      // Start a text block and stream some content
+      act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: { type: "text" },
+        });
+      });
+
       act(() => {
         simulateEvent<AgentChunkPayload>("agent-chunk", {
           delta: "Partial response",
+          block_index: 0,
         });
       });
 
@@ -463,15 +497,19 @@ describe("ChatProvider", () => {
       await waitFor(() => {
         expect(result.current.messages.length).toBe(2); // user + partial assistant
       });
-      expect(result.current.messages[1].content).toContain("Partial response");
-      expect(result.current.messages[1].content).toContain(
-        "[Cancelled by user]",
+      const textBlock = result.current.messages[1].content_blocks.find(
+        (b) => b.type === "text",
       );
+      expect(textBlock).toBeDefined();
+      if (textBlock && textBlock.type === "text") {
+        expect(textBlock.text).toContain("Partial response");
+        expect(textBlock.text).toContain("[Cancelled by user]");
+      }
     });
   });
 
   describe("tool execution tracking", () => {
-    it("adds tool execution on tool-start event", async () => {
+    it("updates tool block on tool-start event", async () => {
       const { result } = renderHook(() => useChat(), {
         wrapper: createWrapper("/test/project"),
       });
@@ -480,21 +518,34 @@ describe("ChatProvider", () => {
         expect(eventListeners.has("agent-tool-start")).toBe(true);
       });
 
+      // First start the tool block
+      act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: {
+            type: "tool_use",
+            tool_use_id: "tool-1",
+            tool_name: "read_file",
+          },
+        });
+      });
+
       act(() => {
         simulateEvent<ToolStartPayload>("agent-tool-start", {
           tool_use_id: "tool-1",
           tool_name: "read_file",
           tool_input: { path: "/test/file.txt" },
+          block_index: 0,
         });
       });
 
-      expect(result.current.toolExecutions).toHaveLength(1);
-      expect(result.current.toolExecutions[0].toolUseId).toBe("tool-1");
-      expect(result.current.toolExecutions[0].toolName).toBe("read_file");
-      expect(result.current.toolExecutions[0].isComplete).toBe(false);
+      expect(result.current.streamBlocks).toHaveLength(1);
+      expect(result.current.streamBlocks[0].toolUseId).toBe("tool-1");
+      expect(result.current.streamBlocks[0].toolName).toBe("read_file");
+      expect(result.current.streamBlocks[0].isComplete).toBe(false);
     });
 
-    it("completes tool execution on tool-end event", async () => {
+    it("completes tool block on tool-end event", async () => {
       const { result } = renderHook(() => useChat(), {
         wrapper: createWrapper("/test/project"),
       });
@@ -503,12 +554,24 @@ describe("ChatProvider", () => {
         expect(eventListeners.has("agent-tool-end")).toBe(true);
       });
 
-      // Start tool
+      // Start tool block
+      act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: {
+            type: "tool_use",
+            tool_use_id: "tool-1",
+            tool_name: "bash",
+          },
+        });
+      });
+
       act(() => {
         simulateEvent<ToolStartPayload>("agent-tool-start", {
           tool_use_id: "tool-1",
           tool_name: "bash",
           tool_input: { command: "ls" },
+          block_index: 0,
         });
       });
 
@@ -518,14 +581,15 @@ describe("ChatProvider", () => {
           tool_use_id: "tool-1",
           output: "file1.txt\nfile2.txt",
           is_error: false,
+          block_index: 0,
         });
       });
 
-      expect(result.current.toolExecutions[0].isComplete).toBe(true);
-      expect(result.current.toolExecutions[0].output).toBe(
+      expect(result.current.streamBlocks[0].isComplete).toBe(true);
+      expect(result.current.streamBlocks[0].output).toBe(
         "file1.txt\nfile2.txt",
       );
-      expect(result.current.toolExecutions[0].isError).toBe(false);
+      expect(result.current.streamBlocks[0].isError).toBe(false);
     });
 
     it("marks tool as error when is_error is true", async () => {
@@ -538,10 +602,22 @@ describe("ChatProvider", () => {
       });
 
       act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: {
+            type: "tool_use",
+            tool_use_id: "tool-err",
+            tool_name: "bash",
+          },
+        });
+      });
+
+      act(() => {
         simulateEvent<ToolStartPayload>("agent-tool-start", {
           tool_use_id: "tool-err",
           tool_name: "bash",
           tool_input: { command: "invalid" },
+          block_index: 0,
         });
       });
 
@@ -550,10 +626,11 @@ describe("ChatProvider", () => {
           tool_use_id: "tool-err",
           output: "Command not found",
           is_error: true,
+          block_index: 0,
         });
       });
 
-      expect(result.current.toolExecutions[0].isError).toBe(true);
+      expect(result.current.streamBlocks[0].isError).toBe(true);
     });
   });
 
@@ -710,9 +787,8 @@ describe("ChatProvider", () => {
       });
 
       expect(result.current.messages).toEqual([]);
-      expect(result.current.streamContent).toBe("");
+      expect(result.current.streamBlocks).toEqual([]);
       expect(result.current.error).toBeNull();
-      expect(result.current.toolExecutions).toEqual([]);
       expect(result.current.messageQueue).toEqual([]);
     });
   });
@@ -816,26 +892,37 @@ describe("ChatProvider", () => {
         await result.current.sendMessage("Explain React hooks");
       });
 
+      // Start text block
+      act(() => {
+        simulateEvent<ContentBlockStartPayload>("agent-content-block-start", {
+          block_index: 0,
+          block_type: { type: "text" },
+        });
+      });
+
       // Streaming begins
       act(() => {
         simulateEvent<AgentChunkPayload>("agent-chunk", {
           delta: "React hooks ",
+          block_index: 0,
         });
       });
 
       act(() => {
         simulateEvent<AgentChunkPayload>("agent-chunk", {
           delta: "allow you ",
+          block_index: 0,
         });
       });
 
       act(() => {
         simulateEvent<AgentChunkPayload>("agent-chunk", {
           delta: "to use state.",
+          block_index: 0,
         });
       });
 
-      expect(result.current.streamContent).toBe(
+      expect(result.current.streamBlocks[0].text).toBe(
         "React hooks allow you to use state.",
       );
 
@@ -848,10 +935,10 @@ describe("ChatProvider", () => {
       });
 
       expect(result.current.messages).toHaveLength(2);
-      expect(result.current.messages[1].content).toBe(
-        "React hooks allow you to use state.",
-      );
-      expect(result.current.streamContent).toBe("");
+      expect(result.current.messages[1].content_blocks).toEqual([
+        { type: "text", text: "React hooks allow you to use state." },
+      ]);
+      expect(result.current.streamBlocks).toEqual([]);
       expect(result.current.isLoading).toBe(false);
     });
   });

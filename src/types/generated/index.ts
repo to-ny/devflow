@@ -17,11 +17,13 @@ export type { AgentCompletePayload } from "./AgentCompletePayload";
 export type { AgentErrorPayload } from "./AgentErrorPayload";
 export type { AgentStatus } from "./AgentStatus";
 export type { AgentStatusPayload } from "./AgentStatusPayload";
+export type { ChatContentBlock } from "./ChatContentBlock";
 export type { ChatMessage } from "./ChatMessage";
+export type { ContentBlockStartPayload } from "./ContentBlockStartPayload";
+export type { ContentBlockType } from "./ContentBlockType";
 export type { MessageRole } from "./MessageRole";
 export type { PlanReadyPayload } from "./PlanReadyPayload";
 export type { ToolEndPayload } from "./ToolEndPayload";
-export type { ToolExecution } from "./ToolExecution";
 export type { ToolStartPayload } from "./ToolStartPayload";
 
 // Config types

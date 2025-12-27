@@ -56,13 +56,14 @@ describe("Contract Tests", () => {
     expect(roundTripped.stop_reason).toBeNull();
   });
 
-  it("ChatMessage with tool_executions serializes correctly", () => {
+  it("ChatMessage with content_blocks serializes correctly", () => {
     const message: ChatMessage = {
       id: "msg-1",
       role: "assistant",
-      content: "Response",
-      tool_executions: [
+      content_blocks: [
+        { type: "text", text: "Response" },
         {
+          type: "tool_use",
           tool_use_id: "tool-1",
           tool_name: "read_file",
           tool_input: { path: "/test.ts" },
@@ -73,7 +74,8 @@ describe("Contract Tests", () => {
     };
 
     const roundTripped: ChatMessage = JSON.parse(JSON.stringify(message));
-    expect(roundTripped.tool_executions).toHaveLength(1);
-    expect(roundTripped.tool_executions![0].is_error).toBeNull();
+    expect(roundTripped.content_blocks).toHaveLength(2);
+    expect(roundTripped.content_blocks[0].type).toBe("text");
+    expect(roundTripped.content_blocks[1].type).toBe("tool_use");
   });
 });

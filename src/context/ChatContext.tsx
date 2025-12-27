@@ -11,6 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ChatMessage,
+  ChatContentBlock,
   AgentChunkPayload,
   AgentCompletePayload,
   AgentErrorPayload,
@@ -20,19 +21,23 @@ import type {
   PlanReadyPayload,
   ToolStartPayload,
   ToolEndPayload,
+  ContentBlockStartPayload,
 } from "../types/agent";
 
 const PROMPT_HISTORY_KEY = "devflow_prompt_history";
 const MAX_PROMPT_HISTORY = 50;
 const MAX_QUEUED_MESSAGES = 10;
 
-export interface ToolExecution {
-  toolUseId: string;
-  toolName: string;
-  toolInput: unknown;
+export interface StreamingBlock {
+  blockIndex: number;
+  type: "text" | "tool_use";
+  text?: string;
+  toolUseId?: string;
+  toolName?: string;
+  toolInput?: unknown;
   output?: string;
   isError?: boolean;
-  isComplete: boolean;
+  isComplete?: boolean;
 }
 
 export interface QueuedMessage {
@@ -45,9 +50,8 @@ interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
-  streamContent: string;
+  streamBlocks: StreamingBlock[];
   streamMessageId: string | null;
-  toolExecutions: ToolExecution[];
   agentStatus: AgentStatus;
   statusText: string;
   messageQueue: QueuedMessage[];
@@ -79,7 +83,6 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-// Partial state for clearing pending plan - use spread in state updates
 const CLEAR_PENDING_PLAN = { pendingPlan: null } as const;
 
 function loadPromptHistory(): string[] {
@@ -121,9 +124,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     messages: [],
     isLoading: false,
     error: null,
-    streamContent: "",
+    streamBlocks: [],
     streamMessageId: null,
-    toolExecutions: [],
     agentStatus: "idle" as AgentStatus,
     statusText: "",
     messageQueue: [],
@@ -153,9 +155,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       messages: [],
       isLoading: false,
       error: null,
-      streamContent: "",
+      streamBlocks: [],
       streamMessageId: null,
-      toolExecutions: [],
       agentStatus: "idle" as AgentStatus,
       statusText: "",
       messageQueue: [],
@@ -170,7 +171,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       const userMessage: ChatMessage = {
         id: generateId(),
         role: "user",
-        content,
+        content_blocks: [{ type: "text", text: content }],
       };
       const newMessages = [...messagesRef.current, userMessage];
 
@@ -179,9 +180,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         messages: newMessages,
         isLoading: true,
         error: null,
-        streamContent: "",
+        streamBlocks: [],
         streamMessageId: null,
-        toolExecutions: [],
         agentStatus: "sending" as AgentStatus,
         statusText: "Sending...",
         promptHistory: addToPromptHistory(prev.promptHistory, content),
@@ -289,10 +289,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       if (isMounted.current) {
         setState((prev) => {
           // Save partial response as a message if there's any content
-          const hasContent =
-            prev.streamContent || prev.toolExecutions.length > 0;
-
-          if (!hasContent) {
+          if (prev.streamBlocks.length === 0) {
             return {
               ...prev,
               isLoading: false,
@@ -302,33 +299,45 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
             };
           }
 
-          // Convert tool executions for the message
-          const toolExecutions =
-            prev.toolExecutions.length > 0
-              ? prev.toolExecutions.map((exec) => ({
-                  tool_use_id: exec.toolUseId,
-                  tool_name: exec.toolName,
-                  tool_input: exec.toolInput,
-                  output: exec.output ?? null,
-                  is_error: exec.isError ?? null,
-                }))
-              : undefined;
+          // Convert streaming blocks to content blocks
+          const contentBlocks: ChatContentBlock[] = prev.streamBlocks
+            .sort((a, b) => a.blockIndex - b.blockIndex)
+            .map((block): ChatContentBlock => {
+              if (block.type === "text") {
+                const text = block.text || "";
+                return {
+                  type: "text",
+                  text: text + "\n\n*[Cancelled by user]*",
+                };
+              } else {
+                return {
+                  type: "tool_use",
+                  tool_use_id: block.toolUseId!,
+                  tool_name: block.toolName!,
+                  tool_input: block.toolInput,
+                  output: block.output ?? null,
+                  is_error: block.isError ?? null,
+                };
+              }
+            });
+
+          // If no text block exists, add cancellation message
+          const hasTextBlock = contentBlocks.some((b) => b.type === "text");
+          if (!hasTextBlock) {
+            contentBlocks.push({ type: "text", text: "*[Cancelled by user]*" });
+          }
 
           const cancelledMessage: ChatMessage = {
             id: generateId(),
             role: "assistant",
-            content: prev.streamContent
-              ? prev.streamContent + "\n\n*[Cancelled by user]*"
-              : "*[Cancelled by user]*",
-            tool_executions: toolExecutions,
+            content_blocks: contentBlocks,
           };
 
           return {
             ...prev,
             messages: [...prev.messages, cancelledMessage],
             isLoading: false,
-            streamContent: "",
-            toolExecutions: [],
+            streamBlocks: [],
             agentStatus: "cancelled" as AgentStatus,
             statusText: "Cancelled",
             ...CLEAR_PENDING_PLAN,
@@ -344,10 +353,9 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     setState((prev) => ({
       ...prev,
       messages: [],
-      streamContent: "",
+      streamBlocks: [],
       streamMessageId: null,
       error: null,
-      toolExecutions: [],
       agentStatus: "idle" as AgentStatus,
       statusText: "",
       messageQueue: [],
@@ -443,14 +451,51 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     const unlisteners: (() => void)[] = [];
 
     async function setupListeners() {
+      // Listen for content block start to create new streaming blocks
+      const unlistenBlockStart = await listen<ContentBlockStartPayload>(
+        "agent-content-block-start",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => {
+            const newBlock: StreamingBlock = {
+              blockIndex: event.payload.block_index,
+              type:
+                event.payload.block_type.type === "text" ? "text" : "tool_use",
+              text: event.payload.block_type.type === "text" ? "" : undefined,
+              toolUseId:
+                event.payload.block_type.type === "tool_use"
+                  ? event.payload.block_type.tool_use_id
+                  : undefined,
+              toolName:
+                event.payload.block_type.type === "tool_use"
+                  ? event.payload.block_type.tool_name
+                  : undefined,
+            };
+            return {
+              ...prev,
+              streamBlocks: [...prev.streamBlocks, newBlock],
+            };
+          });
+        },
+      );
+
       const unlistenChunk = await listen<AgentChunkPayload>(
         "agent-chunk",
         (event) => {
           if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            streamContent: prev.streamContent + event.payload.delta,
-          }));
+          setState((prev) => {
+            const blocks = [...prev.streamBlocks];
+            const blockIdx = blocks.findIndex(
+              (b) => b.blockIndex === event.payload.block_index,
+            );
+            if (blockIdx !== -1 && blocks[blockIdx].type === "text") {
+              blocks[blockIdx] = {
+                ...blocks[blockIdx],
+                text: (blocks[blockIdx].text || "") + event.payload.delta,
+              };
+            }
+            return { ...prev, streamBlocks: blocks };
+          });
         },
       );
 
@@ -459,32 +504,35 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         (event) => {
           if (cancelled || !isMounted.current) return;
           setState((prev) => {
-            // Convert tool executions to the format expected by ChatMessage
-            // Note: Generated types use null, not undefined
-            const toolExecutions =
-              prev.toolExecutions.length > 0
-                ? prev.toolExecutions.map((exec) => ({
-                    tool_use_id: exec.toolUseId,
-                    tool_name: exec.toolName,
-                    tool_input: exec.toolInput,
-                    output: exec.output ?? null,
-                    is_error: exec.isError ?? null,
-                  }))
-                : undefined;
+            // Convert streaming blocks to ChatContentBlocks
+            const contentBlocks: ChatContentBlock[] = prev.streamBlocks
+              .sort((a, b) => a.blockIndex - b.blockIndex)
+              .map((block): ChatContentBlock => {
+                if (block.type === "text") {
+                  return { type: "text", text: block.text || "" };
+                } else {
+                  return {
+                    type: "tool_use",
+                    tool_use_id: block.toolUseId!,
+                    tool_name: block.toolName!,
+                    tool_input: block.toolInput,
+                    output: block.output ?? null,
+                    is_error: block.isError ?? null,
+                  };
+                }
+              });
 
             const assistantMessage: ChatMessage = {
               id: event.payload.message_id,
               role: "assistant",
-              content: prev.streamContent,
-              tool_executions: toolExecutions,
+              content_blocks: contentBlocks,
             };
             return {
               ...prev,
               messages: [...prev.messages, assistantMessage],
               isLoading: false,
-              streamContent: "",
+              streamBlocks: [],
               streamMessageId: null,
-              toolExecutions: [],
               agentStatus: "idle" as AgentStatus,
               statusText: "",
             };
@@ -500,7 +548,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
             ...prev,
             isLoading: false,
             error: event.payload.error,
-            streamContent: "",
+            streamBlocks: [],
             streamMessageId: null,
             agentStatus: "error" as AgentStatus,
           }));
@@ -530,10 +578,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
             }
 
             // Save partial response as a message if there's any content
-            const hasContent =
-              prev.streamContent || prev.toolExecutions.length > 0;
-
-            if (!hasContent) {
+            if (prev.streamBlocks.length === 0) {
               return {
                 ...prev,
                 isLoading: false,
@@ -543,33 +588,48 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
               };
             }
 
-            // Convert tool executions for the message
-            const toolExecutions =
-              prev.toolExecutions.length > 0
-                ? prev.toolExecutions.map((exec) => ({
-                    tool_use_id: exec.toolUseId,
-                    tool_name: exec.toolName,
-                    tool_input: exec.toolInput,
-                    output: exec.output ?? null,
-                    is_error: exec.isError ?? null,
-                  }))
-                : undefined;
+            // Convert streaming blocks to content blocks
+            const contentBlocks: ChatContentBlock[] = prev.streamBlocks
+              .sort((a, b) => a.blockIndex - b.blockIndex)
+              .map((block): ChatContentBlock => {
+                if (block.type === "text") {
+                  const text = block.text || "";
+                  return {
+                    type: "text",
+                    text: text + "\n\n*[Cancelled by user]*",
+                  };
+                } else {
+                  return {
+                    type: "tool_use",
+                    tool_use_id: block.toolUseId!,
+                    tool_name: block.toolName!,
+                    tool_input: block.toolInput,
+                    output: block.output ?? null,
+                    is_error: block.isError ?? null,
+                  };
+                }
+              });
+
+            // If no text block exists, add cancellation message
+            const hasTextBlock = contentBlocks.some((b) => b.type === "text");
+            if (!hasTextBlock) {
+              contentBlocks.push({
+                type: "text",
+                text: "*[Cancelled by user]*",
+              });
+            }
 
             const cancelledMessage: ChatMessage = {
               id: generateId(),
               role: "assistant",
-              content: prev.streamContent
-                ? prev.streamContent + "\n\n*[Cancelled by user]*"
-                : "*[Cancelled by user]*",
-              tool_executions: toolExecutions,
+              content_blocks: contentBlocks,
             };
 
             return {
               ...prev,
               messages: [...prev.messages, cancelledMessage],
               isLoading: false,
-              streamContent: "",
-              toolExecutions: [],
+              streamBlocks: [],
               agentStatus: "cancelled" as AgentStatus,
               statusText: "Cancelled",
               ...CLEAR_PENDING_PLAN,
@@ -582,18 +642,22 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         "agent-tool-start",
         (event) => {
           if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            toolExecutions: [
-              ...prev.toolExecutions,
-              {
+          setState((prev) => {
+            const blocks = [...prev.streamBlocks];
+            const blockIdx = blocks.findIndex(
+              (b) => b.blockIndex === event.payload.block_index,
+            );
+            if (blockIdx !== -1) {
+              blocks[blockIdx] = {
+                ...blocks[blockIdx],
                 toolUseId: event.payload.tool_use_id,
                 toolName: event.payload.tool_name,
                 toolInput: event.payload.tool_input,
                 isComplete: false,
-              },
-            ],
-          }));
+              };
+            }
+            return { ...prev, streamBlocks: blocks };
+          });
         },
       );
 
@@ -601,19 +665,21 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         "agent-tool-end",
         (event) => {
           if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            toolExecutions: prev.toolExecutions.map((exec) =>
-              exec.toolUseId === event.payload.tool_use_id
-                ? {
-                    ...exec,
-                    output: event.payload.output,
-                    isError: event.payload.is_error,
-                    isComplete: true,
-                  }
-                : exec,
-            ),
-          }));
+          setState((prev) => {
+            const blocks = [...prev.streamBlocks];
+            const blockIdx = blocks.findIndex(
+              (b) => b.blockIndex === event.payload.block_index,
+            );
+            if (blockIdx !== -1) {
+              blocks[blockIdx] = {
+                ...blocks[blockIdx],
+                output: event.payload.output,
+                isError: event.payload.is_error,
+                isComplete: true,
+              };
+            }
+            return { ...prev, streamBlocks: blocks };
+          });
         },
       );
 
@@ -624,12 +690,13 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           setState((prev) => ({
             ...prev,
             pendingPlan: event.payload.plan,
-            streamContent: "",
+            streamBlocks: [],
           }));
         },
       );
 
       if (cancelled) {
+        unlistenBlockStart();
         unlistenChunk();
         unlistenComplete();
         unlistenError();
@@ -640,6 +707,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenPlanReady();
       } else {
         unlisteners.push(
+          unlistenBlockStart,
           unlistenChunk,
           unlistenComplete,
           unlistenError,

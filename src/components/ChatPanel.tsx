@@ -3,8 +3,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useChat, ToolExecution } from "../context/ChatContext";
-import type { ChatMessage } from "../types/agent";
+import { useChat, StreamingBlock } from "../context/ChatContext";
+import type { ChatContentBlock } from "../types/agent";
 import { getToolIcon, getToolLabel } from "../utils/toolUtils";
 import { ToolDetailDialog, ToolDetail } from "./ToolDetailDialog";
 import "./Panel.css";
@@ -50,35 +50,37 @@ function MarkdownContent({ content }: MarkdownContentProps) {
 }
 
 interface ToolBlockProps {
-  execution: ToolExecution;
+  block: StreamingBlock;
   onOpenDetail: (tool: ToolDetail) => void;
 }
 
-function ToolBlock({ execution, onOpenDetail }: ToolBlockProps) {
+function ToolBlock({ block, onOpenDetail }: ToolBlockProps) {
   const handleClick = () => {
     onOpenDetail({
-      toolName: execution.toolName,
-      toolInput: execution.toolInput,
-      output: execution.output,
-      isError: execution.isError,
-      isComplete: execution.isComplete,
+      toolName: block.toolName || "",
+      toolInput: block.toolInput,
+      output: block.output,
+      isError: block.isError,
+      isComplete: block.isComplete || false,
     });
   };
 
-  const statusClass = execution.isComplete
-    ? execution.isError
+  const statusClass = block.isComplete
+    ? block.isError
       ? "tool-error"
       : "tool-success"
     : "tool-running";
 
   return (
     <div className={`tool-row ${statusClass}`} onClick={handleClick}>
-      <span className="tool-row-icon">{getToolIcon(execution.toolName)}</span>
-      <span className="tool-row-name">{getToolLabel(execution.toolName)}</span>
+      <span className="tool-row-icon">{getToolIcon(block.toolName || "")}</span>
+      <span className="tool-row-name">
+        {getToolLabel(block.toolName || "")}
+      </span>
       <span className="tool-row-status">
-        {!execution.isComplete && <span className="tool-spinner" />}
-        {execution.isComplete && !execution.isError && "\u2713"}
-        {execution.isComplete && execution.isError && "\u2717"}
+        {!block.isComplete && <span className="tool-spinner" />}
+        {block.isComplete && !block.isError && "\u2713"}
+        {block.isComplete && block.isError && "\u2717"}
       </span>
     </div>
   );
@@ -86,32 +88,32 @@ function ToolBlock({ execution, onOpenDetail }: ToolBlockProps) {
 
 // Component for rendering historical tool executions from saved messages
 interface HistoricalToolBlockProps {
-  toolExec: NonNullable<ChatMessage["tool_executions"]>[number];
+  block: Extract<ChatContentBlock, { type: "tool_use" }>;
   onOpenDetail: (tool: ToolDetail) => void;
 }
 
 function HistoricalToolBlock({
-  toolExec,
+  block,
   onOpenDetail,
 }: HistoricalToolBlockProps) {
   const handleClick = () => {
     onOpenDetail({
-      toolName: toolExec.tool_name,
-      toolInput: toolExec.tool_input,
-      output: toolExec.output,
-      isError: toolExec.is_error,
+      toolName: block.tool_name,
+      toolInput: block.tool_input,
+      output: block.output,
+      isError: block.is_error,
       isComplete: true, // Historical executions are always complete
     });
   };
 
-  const statusClass = toolExec.is_error ? "tool-error" : "tool-success";
+  const statusClass = block.is_error ? "tool-error" : "tool-success";
 
   return (
     <div className={`tool-row ${statusClass}`} onClick={handleClick}>
-      <span className="tool-row-icon">{getToolIcon(toolExec.tool_name)}</span>
-      <span className="tool-row-name">{getToolLabel(toolExec.tool_name)}</span>
+      <span className="tool-row-icon">{getToolIcon(block.tool_name)}</span>
+      <span className="tool-row-name">{getToolLabel(block.tool_name)}</span>
       <span className="tool-row-status">
-        {toolExec.is_error ? "\u2717" : "\u2713"}
+        {block.is_error ? "\u2717" : "\u2713"}
       </span>
     </div>
   );
@@ -351,8 +353,7 @@ export function ChatPanel() {
     messages,
     isLoading,
     error,
-    streamContent,
-    toolExecutions,
+    streamBlocks,
     statusText,
     messageQueue,
     promptHistory,
@@ -396,7 +397,7 @@ export function ChatPanel() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamContent, toolExecutions]);
+  }, [messages, streamBlocks]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -491,46 +492,66 @@ export function ChatPanel() {
             <div className="chat-message-content">
               {msg.role === "assistant" ? (
                 <>
-                  {/* Render historical tool executions */}
-                  {msg.tool_executions?.map((toolExec) => (
-                    <HistoricalToolBlock
-                      key={toolExec.tool_use_id}
-                      toolExec={toolExec}
-                      onOpenDetail={handleOpenToolDetail}
-                    />
-                  ))}
-                  <MarkdownContent content={msg.content} />
+                  {/* Render content blocks in order */}
+                  {msg.content_blocks.map((block, index) =>
+                    block.type === "text" ? (
+                      <MarkdownContent
+                        key={`text-${index}`}
+                        content={block.text}
+                      />
+                    ) : (
+                      <HistoricalToolBlock
+                        key={block.tool_use_id}
+                        block={block}
+                        onOpenDetail={handleOpenToolDetail}
+                      />
+                    ),
+                  )}
                 </>
               ) : (
-                msg.content
+                // User messages: extract text from content blocks
+                msg.content_blocks
+                  .filter(
+                    (b): b is Extract<ChatContentBlock, { type: "text" }> =>
+                      b.type === "text",
+                  )
+                  .map((b) => b.text)
+                  .join("")
               )}
             </div>
           </div>
         ))}
 
         {/* Streaming response */}
-        {isLoading && (streamContent || toolExecutions.length > 0) && (
+        {isLoading && streamBlocks.length > 0 && (
           <div className="chat-message chat-message-assistant chat-message-streaming">
             <div className="chat-message-role">Assistant</div>
             <div className="chat-message-content">
-              {/* Tool executions */}
-              {toolExecutions.map((exec) => (
-                <ToolBlock
-                  key={exec.toolUseId}
-                  execution={exec}
-                  onOpenDetail={handleOpenToolDetail}
-                />
-              ))}
-
-              {/* Streamed text */}
-              {streamContent && <MarkdownContent content={streamContent} />}
+              {/* Render streaming blocks in order */}
+              {streamBlocks
+                .slice()
+                .sort((a, b) => a.blockIndex - b.blockIndex)
+                .map((block) =>
+                  block.type === "text" ? (
+                    <MarkdownContent
+                      key={`text-${block.blockIndex}`}
+                      content={block.text || ""}
+                    />
+                  ) : (
+                    <ToolBlock
+                      key={`tool-${block.blockIndex}`}
+                      block={block}
+                      onOpenDetail={handleOpenToolDetail}
+                    />
+                  ),
+                )}
               <span className="streaming-cursor" />
             </div>
           </div>
         )}
 
         {/* Thinking state (no content yet) */}
-        {isLoading && !streamContent && toolExecutions.length === 0 && (
+        {isLoading && streamBlocks.length === 0 && (
           <div className="chat-message chat-message-assistant">
             <div className="chat-message-role">Assistant</div>
             <div className="chat-message-content chat-typing">

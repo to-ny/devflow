@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatPanel } from "./ChatPanel";
 import type { ChatMessage } from "../types/agent";
+import type { StreamingBlock } from "../context/ChatContext";
 
 // Mock the ChatContext
 const mockSendMessage = vi.fn();
@@ -17,15 +18,7 @@ interface MockChatState {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
-  streamContent: string;
-  toolExecutions: {
-    toolUseId: string;
-    toolName: string;
-    toolInput: unknown;
-    output?: string;
-    isError?: boolean;
-    isComplete: boolean;
-  }[];
+  streamBlocks: StreamingBlock[];
   agentStatus: string;
   statusText: string;
   messageQueue: { id: string; content: string; status: string }[];
@@ -37,8 +30,7 @@ let mockChatState: MockChatState = {
   messages: [],
   isLoading: false,
   error: null,
-  streamContent: "",
-  toolExecutions: [],
+  streamBlocks: [],
   agentStatus: "idle",
   statusText: "",
   messageQueue: [],
@@ -66,8 +58,7 @@ describe("ChatPanel", () => {
       messages: [],
       isLoading: false,
       error: null,
-      streamContent: "",
-      toolExecutions: [],
+      streamBlocks: [],
       agentStatus: "idle",
       statusText: "",
       messageQueue: [],
@@ -105,7 +96,11 @@ describe("ChatPanel", () => {
   describe("messages display", () => {
     it("renders user messages", () => {
       mockChatState.messages = [
-        { id: "msg-1", role: "user", content: "Hello, AI!" },
+        {
+          id: "msg-1",
+          role: "user",
+          content_blocks: [{ type: "text", text: "Hello, AI!" }],
+        },
       ];
 
       render(<ChatPanel />);
@@ -116,7 +111,11 @@ describe("ChatPanel", () => {
 
     it("renders assistant messages", () => {
       mockChatState.messages = [
-        { id: "msg-1", role: "assistant", content: "Hello! How can I help?" },
+        {
+          id: "msg-1",
+          role: "assistant",
+          content_blocks: [{ type: "text", text: "Hello! How can I help?" }],
+        },
       ];
 
       render(<ChatPanel />);
@@ -127,9 +126,21 @@ describe("ChatPanel", () => {
 
     it("renders multiple messages in order", () => {
       mockChatState.messages = [
-        { id: "msg-1", role: "user", content: "First message" },
-        { id: "msg-2", role: "assistant", content: "First response" },
-        { id: "msg-3", role: "user", content: "Second message" },
+        {
+          id: "msg-1",
+          role: "user",
+          content_blocks: [{ type: "text", text: "First message" }],
+        },
+        {
+          id: "msg-2",
+          role: "assistant",
+          content_blocks: [{ type: "text", text: "First response" }],
+        },
+        {
+          id: "msg-3",
+          role: "user",
+          content_blocks: [{ type: "text", text: "Second message" }],
+        },
       ];
 
       render(<ChatPanel />);
@@ -144,7 +155,9 @@ describe("ChatPanel", () => {
         {
           id: "msg-1",
           role: "assistant",
-          content: "Here is some **bold** text",
+          content_blocks: [
+            { type: "text", text: "Here is some **bold** text" },
+          ],
         },
       ];
 
@@ -159,8 +172,10 @@ describe("ChatPanel", () => {
   describe("tool blocks", () => {
     it("renders tool execution blocks in streaming state", () => {
       mockChatState.isLoading = true;
-      mockChatState.toolExecutions = [
+      mockChatState.streamBlocks = [
         {
+          blockIndex: 0,
+          type: "tool_use",
           toolUseId: "tool-1",
           toolName: "read_file",
           toolInput: { path: "/test/file.ts" },
@@ -175,8 +190,10 @@ describe("ChatPanel", () => {
 
     it("shows tool running state", () => {
       mockChatState.isLoading = true;
-      mockChatState.toolExecutions = [
+      mockChatState.streamBlocks = [
         {
+          blockIndex: 0,
+          type: "tool_use",
           toolUseId: "tool-1",
           toolName: "bash",
           toolInput: { command: "ls" },
@@ -191,8 +208,10 @@ describe("ChatPanel", () => {
 
     it("shows tool success state", () => {
       mockChatState.isLoading = true;
-      mockChatState.toolExecutions = [
+      mockChatState.streamBlocks = [
         {
+          blockIndex: 0,
+          type: "tool_use",
           toolUseId: "tool-1",
           toolName: "read_file",
           toolInput: { path: "/test/file.ts" },
@@ -210,8 +229,10 @@ describe("ChatPanel", () => {
 
     it("shows tool error state", () => {
       mockChatState.isLoading = true;
-      mockChatState.toolExecutions = [
+      mockChatState.streamBlocks = [
         {
+          blockIndex: 0,
+          type: "tool_use",
           toolUseId: "tool-1",
           toolName: "bash",
           toolInput: { command: "invalid" },
@@ -232,15 +253,16 @@ describe("ChatPanel", () => {
         {
           id: "msg-1",
           role: "assistant",
-          content: "I read the file.",
-          tool_executions: [
+          content_blocks: [
             {
+              type: "tool_use",
               tool_use_id: "tool-1",
               tool_name: "read_file",
               tool_input: { path: "/test.ts" },
               output: "content",
               is_error: false,
             },
+            { type: "text", text: "I read the file." },
           ],
         },
       ];
@@ -315,8 +337,7 @@ describe("ChatPanel", () => {
   describe("loading state", () => {
     it("shows thinking dots when loading with no content", () => {
       mockChatState.isLoading = true;
-      mockChatState.streamContent = "";
-      mockChatState.toolExecutions = [];
+      mockChatState.streamBlocks = [];
 
       render(<ChatPanel />);
 
@@ -327,7 +348,9 @@ describe("ChatPanel", () => {
 
     it("shows streaming content when available", () => {
       mockChatState.isLoading = true;
-      mockChatState.streamContent = "This is streaming text";
+      mockChatState.streamBlocks = [
+        { blockIndex: 0, type: "text", text: "This is streaming text" },
+      ];
 
       render(<ChatPanel />);
 

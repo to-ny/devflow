@@ -41,12 +41,43 @@ where
 
 impl From<&ChatMessage> for AnthropicMessage {
     fn from(msg: &ChatMessage) -> Self {
+        use crate::agent::types::ChatContentBlock;
+
+        let role = match msg.role {
+            MessageRole::User => "user".to_string(),
+            MessageRole::Assistant => "assistant".to_string(),
+        };
+
+        // Convert ChatContentBlocks to Anthropic ContentBlocks
+        let blocks: Vec<ContentBlock> = msg
+            .content_blocks
+            .iter()
+            .map(|block| match block {
+                ChatContentBlock::Text { text } => ContentBlock::Text { text: text.clone() },
+                ChatContentBlock::ToolUse {
+                    tool_use_id,
+                    tool_name,
+                    tool_input,
+                    ..
+                } => ContentBlock::ToolUse {
+                    id: tool_use_id.clone(),
+                    name: tool_name.clone(),
+                    input: tool_input.clone(),
+                },
+            })
+            .collect();
+
         Self {
-            role: match msg.role {
-                MessageRole::User => "user".to_string(),
-                MessageRole::Assistant => "assistant".to_string(),
+            role,
+            content: if blocks.len() == 1 {
+                if let Some(ContentBlock::Text { text }) = blocks.first() {
+                    MessageContent::Text(text.clone())
+                } else {
+                    MessageContent::Blocks(blocks)
+                }
+            } else {
+                MessageContent::Blocks(blocks)
             },
-            content: MessageContent::Text(msg.content.clone()),
         }
     }
 }
@@ -142,6 +173,7 @@ pub struct UsageData {
     pub output_tokens: u32,
 }
 
+/// Accumulates streamed response chunks into complete content blocks.
 #[derive(Debug, Default)]
 pub struct StreamedResponse {
     pub content_blocks: Vec<ContentBlock>,
@@ -209,6 +241,10 @@ impl StreamedResponse {
         self.content_blocks
             .iter()
             .any(|b| matches!(b, ContentBlock::ToolUse { .. }))
+    }
+
+    pub fn block_count(&self) -> u32 {
+        self.content_blocks.len() as u32
     }
 }
 

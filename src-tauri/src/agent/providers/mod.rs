@@ -19,7 +19,50 @@ use super::types::{AgentStatus, AgentStatusPayload};
 pub use anthropic::AnthropicAdapter;
 pub use gemini::GeminiAdapter;
 
+use tokio_util::sync::CancellationToken;
+
 pub const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../default_system_prompt.md");
+
+/// Context for streaming responses, reducing parameter passing.
+pub(crate) struct StreamContext<'a> {
+    pub app_handle: &'a AppHandle,
+    pub cancel_token: &'a CancellationToken,
+    pub block_offset: u32,
+}
+
+/// Tracks global block indices across multiple streaming responses in a tool loop.
+pub(crate) struct StreamingState {
+    global_block_counter: u32,
+}
+
+impl StreamingState {
+    pub fn new() -> Self {
+        Self {
+            global_block_counter: 0,
+        }
+    }
+
+    pub fn create_context<'a>(
+        &self,
+        app_handle: &'a AppHandle,
+        cancel_token: &'a CancellationToken,
+    ) -> StreamContext<'a> {
+        StreamContext {
+            app_handle,
+            cancel_token,
+            block_offset: self.global_block_counter,
+        }
+    }
+
+    pub fn advance(&mut self, block_count: u32) {
+        self.global_block_counter += block_count;
+    }
+
+    #[cfg(test)]
+    pub fn current_offset(&self) -> u32 {
+        self.global_block_counter
+    }
+}
 
 pub(crate) fn emit_status(app_handle: &AppHandle, status: AgentStatus, detail: Option<String>) {
     let _ = app_handle.emit("agent-status", AgentStatusPayload::new(status, detail));
@@ -49,8 +92,6 @@ pub(crate) fn build_system_prompt(
     parts.join("\n\n")
 }
 
-use tokio_util::sync::CancellationToken;
-
 use super::tools::SessionState;
 
 pub(crate) fn create_executor(
@@ -73,6 +114,7 @@ pub(crate) struct ToolCall {
     pub id: String,
     pub name: String,
     pub input: serde_json::Value,
+    pub block_index: u32,
 }
 
 pub(crate) struct ToolResult {
@@ -110,6 +152,7 @@ pub(crate) async fn execute_tool_calls(
                 tool_use_id: call.id.clone(),
                 tool_name: call.name.clone(),
                 tool_input: call.input.clone(),
+                block_index: call.block_index,
             },
         );
 
@@ -135,6 +178,7 @@ pub(crate) async fn execute_tool_calls(
                     tool_use_id: call.id.clone(),
                     output: "Cancelled by user".to_string(),
                     is_error: true,
+                    block_index: call.block_index,
                 },
             );
             return Err(AgentError::Cancelled);
@@ -146,6 +190,7 @@ pub(crate) async fn execute_tool_calls(
                 tool_use_id: call.id.clone(),
                 output: output.clone(),
                 is_error,
+                block_index: call.block_index,
             },
         );
 
@@ -304,5 +349,60 @@ mod tests {
     fn test_default_system_prompt_is_not_empty() {
         assert!(!DEFAULT_SYSTEM_PROMPT.is_empty());
         assert!(DEFAULT_SYSTEM_PROMPT.len() > 50); // Should have meaningful content
+    }
+
+    #[test]
+    fn test_streaming_state_starts_at_zero() {
+        let state = StreamingState::new();
+        assert_eq!(state.current_offset(), 0);
+    }
+
+    #[test]
+    fn test_streaming_state_advances_correctly() {
+        let mut state = StreamingState::new();
+
+        // First response: 3 blocks
+        assert_eq!(state.current_offset(), 0);
+        state.advance(3);
+
+        // Second response: 2 blocks
+        assert_eq!(state.current_offset(), 3);
+        state.advance(2);
+
+        // Third response: 1 block
+        assert_eq!(state.current_offset(), 5);
+        state.advance(1);
+        assert_eq!(state.current_offset(), 6);
+    }
+
+    #[test]
+    fn test_streaming_state_handles_empty_responses() {
+        let mut state = StreamingState::new();
+
+        state.advance(0);
+        assert_eq!(state.current_offset(), 0);
+
+        state.advance(2);
+        state.advance(0);
+        assert_eq!(state.current_offset(), 2);
+    }
+
+    #[test]
+    fn test_streaming_state_simulates_tool_loop() {
+        let mut state = StreamingState::new();
+
+        // Turn 1: text (0), tool (1)
+        assert_eq!(state.current_offset(), 0);
+        state.advance(2);
+
+        // Turn 2: text (2), tool (3)
+        assert_eq!(state.current_offset(), 2);
+        state.advance(2);
+
+        // Turn 3: final text (4)
+        assert_eq!(state.current_offset(), 4);
+        state.advance(1);
+
+        assert_eq!(state.current_offset(), 5);
     }
 }
