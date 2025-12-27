@@ -1,16 +1,36 @@
-Read a Jupyter notebook file including cell contents and outputs.
+Read a Jupyter notebook (.ipynb) file including cell contents and outputs.
 
-Use when:
-- Examining notebook structure and code
-- Understanding data analysis workflows
-- Reviewing notebook outputs
+## Usage
 
-Input:
-- `path`: Relative path to .ipynb file
+- Use this instead of read_file for .ipynb files
+- Returns all cells with their content and outputs
+
+## Parameters
+
+- `path`: Relative path to .ipynb file (required)
+
+## Return Format
 
 Returns all cells with:
-- Cell number and type (code/markdown)
+- Cell number (zero-indexed)
+- Cell type (code or markdown)
 - Source content
 - Outputs (for executed code cells)
 
-For regular files, use read_file instead.
+## When to Use
+
+- Examining notebook structure and code
+- Understanding data analysis workflows
+- Reviewing notebook outputs and visualizations
+- Checking cell execution order
+
+## When NOT to Use
+
+- Regular text/code files (use read_file instead)
+- Editing notebooks (use notebook_edit instead)
+
+## Example
+
+```json
+{"path": "notebooks/analysis.ipynb"}
+```
