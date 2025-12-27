@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent::types::{ChatMessage, MessageRole, ToolDefinition};
+use crate::agent::usage::TokenUsage;
 
 // === Request Types ===
 
@@ -134,6 +135,17 @@ pub struct GeminiResponse {
     pub candidates: Option<Vec<Candidate>>,
     #[serde(default)]
     pub error: Option<GeminiError>,
+    #[serde(default)]
+    pub usage_metadata: Option<GeminiUsageMetadata>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiUsageMetadata {
+    #[serde(default)]
+    pub prompt_token_count: u32,
+    #[serde(default)]
+    pub candidates_token_count: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -207,6 +219,7 @@ pub struct StreamedResponse {
     pub function_calls: Vec<FunctionCall>,
     pub finish_reason: Option<String>,
     pub has_text_block: bool,
+    pub usage: TokenUsage,
 }
 
 impl StreamedResponse {
@@ -231,6 +244,11 @@ impl StreamedResponse {
 
     pub fn set_finish_reason(&mut self, reason: String) {
         self.finish_reason = Some(reason);
+    }
+
+    pub fn update_usage(&mut self, metadata: &GeminiUsageMetadata) {
+        self.usage.input_tokens = metadata.prompt_token_count;
+        self.usage.output_tokens = metadata.candidates_token_count;
     }
 
     pub fn has_function_calls(&self) -> bool {

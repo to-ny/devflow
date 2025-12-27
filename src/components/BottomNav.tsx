@@ -1,11 +1,44 @@
 import { useNavigation } from "../context/NavigationContext";
+import { useChat } from "../context/ChatContext";
 import "./BottomNav.css";
+
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}k`;
+  }
+  return count.toString();
+}
 
 export function BottomNav() {
   const { currentPage, navigate } = useNavigation();
+  const { sessionUsage } = useChat();
+
+  const totalTokens = sessionUsage.input_tokens + sessionUsage.output_tokens;
+  const hasUsage = totalTokens > 0;
 
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
+      {hasUsage && (
+        <div
+          className="token-counter"
+          title={`Input: ${sessionUsage.input_tokens.toLocaleString()} | Output: ${sessionUsage.output_tokens.toLocaleString()}`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          <span>{formatTokenCount(totalTokens)}</span>
+        </div>
+      )}
       <div className="bottom-nav-items">
         <NavButton
           label="Chat"

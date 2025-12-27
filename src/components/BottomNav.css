@@ -12,6 +12,29 @@
   z-index: 100;
 }
 
+.token-counter {
+  position: absolute;
+  left: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+.token-counter svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.token-counter span {
+  font-weight: 500;
+}
+
 .bottom-nav-items {
   display: flex;
   justify-content: center;

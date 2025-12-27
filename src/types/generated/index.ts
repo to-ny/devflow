@@ -26,6 +26,11 @@ export type { PlanReadyPayload } from "./PlanReadyPayload";
 export type { ToolEndPayload } from "./ToolEndPayload";
 export type { ToolStartPayload } from "./ToolStartPayload";
 
+// Usage types
+export type { AgentUsagePayload } from "./AgentUsagePayload";
+export type { UsageSource } from "./UsageSource";
+export type { UsageTotals } from "./UsageTotals";
+
 // Config types
 export type { AgentConfig } from "./AgentConfig";
 export type { ConfigChangedPayload } from "./ConfigChangedPayload";

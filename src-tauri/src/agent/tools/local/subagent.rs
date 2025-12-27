@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
 
@@ -6,6 +7,7 @@ use crate::agent::error::AgentError;
 use crate::agent::provider::ProviderAdapter;
 use crate::agent::tools::get_tool_definitions;
 use crate::agent::types::{ChatMessage, MessageRole, ToolDefinition};
+use crate::agent::usage::SessionUsageTracker;
 use crate::config::ConfigService;
 
 use super::state::SessionState;
@@ -27,6 +29,7 @@ pub async fn execute_subagent(
     max_depth: u32,
     current_depth: u32,
     parent_token: &CancellationToken,
+    usage_tracker: Arc<SessionUsageTracker>,
 ) -> Result<String, AgentError> {
     // Check for cancellation before starting
     if parent_token.is_cancelled() {
@@ -60,7 +63,14 @@ pub async fn execute_subagent(
     let cancel_token = parent_token.child_token();
 
     let result = provider
-        .run_headless(messages, Some(system_prompt), tools, session, cancel_token)
+        .run_headless(
+            messages,
+            Some(system_prompt),
+            tools,
+            session,
+            cancel_token,
+            usage_tracker,
+        )
         .await?;
 
     Ok(result.text)

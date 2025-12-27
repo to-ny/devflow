@@ -188,7 +188,10 @@ describe("ChatProvider", () => {
         await result.current.sendMessage("   ");
       });
 
-      expect(invoke).not.toHaveBeenCalled();
+      expect(invoke).not.toHaveBeenCalledWith(
+        "agent_send_message",
+        expect.anything(),
+      );
       expect(result.current.messages).toHaveLength(0);
     });
 
@@ -201,7 +204,10 @@ describe("ChatProvider", () => {
         await result.current.sendMessage("Test");
       });
 
-      expect(invoke).not.toHaveBeenCalled();
+      expect(invoke).not.toHaveBeenCalledWith(
+        "agent_send_message",
+        expect.anything(),
+      );
     });
 
     it("adds to prompt history when sending message", async () => {

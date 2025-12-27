@@ -23,6 +23,7 @@ import type {
   ToolEndPayload,
   ContentBlockStartPayload,
 } from "../types/agent";
+import type { AgentUsagePayload, UsageTotals } from "../types/generated";
 
 const PROMPT_HISTORY_KEY = "devflow_prompt_history";
 const MAX_PROMPT_HISTORY = 50;
@@ -57,6 +58,7 @@ interface ChatState {
   messageQueue: QueuedMessage[];
   promptHistory: string[];
   pendingPlan: string | null;
+  sessionUsage: UsageTotals;
 }
 
 interface ChatContextValue extends ChatState {
@@ -84,6 +86,7 @@ function generateId(): string {
 }
 
 const CLEAR_PENDING_PLAN = { pendingPlan: null } as const;
+const INITIAL_USAGE: UsageTotals = { input_tokens: 0, output_tokens: 0 };
 
 function loadPromptHistory(): string[] {
   try {
@@ -131,6 +134,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
     messageQueue: [],
     promptHistory: loadPromptHistory(),
     ...CLEAR_PENDING_PLAN,
+    sessionUsage: INITIAL_USAGE,
   }));
 
   const isMounted = useRef(true);
@@ -150,6 +154,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   // Reset chat when project changes
   useEffect(() => {
+    // Fire-and-forget: backend may not be ready yet
+    invoke("reset_session_usage").catch(() => {});
     setState((prev) => ({
       ...prev,
       messages: [],
@@ -161,6 +167,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       statusText: "",
       messageQueue: [],
       ...CLEAR_PENDING_PLAN,
+      sessionUsage: INITIAL_USAGE,
     }));
   }, [projectPath]);
 
@@ -350,6 +357,8 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
   }, []);
 
   const clearMessages = useCallback(() => {
+    // Fire-and-forget: non-critical operation
+    invoke("reset_session_usage").catch(() => {});
     setState((prev) => ({
       ...prev,
       messages: [],
@@ -359,6 +368,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
       agentStatus: "idle" as AgentStatus,
       statusText: "",
       messageQueue: [],
+      sessionUsage: INITIAL_USAGE,
     }));
   }, []);
 
@@ -695,6 +705,20 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         },
       );
 
+      const unlistenUsage = await listen<AgentUsagePayload>(
+        "agent-usage",
+        (event) => {
+          if (cancelled || !isMounted.current) return;
+          setState((prev) => ({
+            ...prev,
+            sessionUsage: {
+              input_tokens: event.payload.input_tokens,
+              output_tokens: event.payload.output_tokens,
+            },
+          }));
+        },
+      );
+
       if (cancelled) {
         unlistenBlockStart();
         unlistenChunk();
@@ -705,6 +729,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         unlistenToolStart();
         unlistenToolEnd();
         unlistenPlanReady();
+        unlistenUsage();
       } else {
         unlisteners.push(
           unlistenBlockStart,
@@ -716,6 +741,7 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
           unlistenToolStart,
           unlistenToolEnd,
           unlistenPlanReady,
+          unlistenUsage,
         );
       }
     }

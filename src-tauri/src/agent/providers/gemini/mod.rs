@@ -2,6 +2,7 @@ mod types;
 
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -17,15 +18,17 @@ use crate::agent::types::{
     AgentCancelledPayload, AgentChunkPayload, AgentCompletePayload, AgentErrorPayload, AgentStatus,
     ChatMessage, ContentBlockStartPayload, ContentBlockType, ToolDefinition,
 };
+use crate::agent::usage::{SessionUsageTracker, UsageSource};
 use crate::config::{AgentConfig, ExecutionConfig, PromptsConfig};
 
 use super::{
-    build_system_prompt, check_iteration_limit, create_executor, emit_status, execute_tool_calls,
+    build_system_prompt, check_iteration_limit, create_executor, emit_status, emit_usage,
+    execute_tool_calls,
     headless::{
         HeadlessResponse, HeadlessStreamer, ToolCall as HeadlessToolCall,
         ToolResult as HeadlessToolResult,
     },
-    run_headless_loop, StreamContext, StreamingState, ToolCall,
+    run_headless_loop, HeadlessContext, StreamContext, StreamingState, ToolCall,
 };
 use types::{
     FunctionDeclaration, FunctionResponse, FunctionResponseContent, GeminiContent, GeminiPart,
@@ -203,6 +206,10 @@ impl GeminiAdapter {
             return false;
         }
 
+        if let Some(usage_metadata) = &response.usage_metadata {
+            streamed.update_usage(usage_metadata);
+        }
+
         if let Some(candidates) = response.candidates {
             for candidate in candidates {
                 if let Some(reason) = candidate.finish_reason {
@@ -266,12 +273,14 @@ impl GeminiAdapter {
         session: SessionState,
         app_handle: &AppHandle,
         cancel_token: &CancellationToken,
+        usage_tracker: &Arc<SessionUsageTracker>,
     ) -> Result<Option<String>, AgentError> {
         let executor = create_executor(
             &self.project_path,
             &self.execution,
             session.clone(),
             cancel_token.clone(),
+            Arc::clone(usage_tracker),
         );
         let mut conversation = initial_contents;
         let max_iterations = self.execution.max_tool_iterations;
@@ -288,6 +297,7 @@ impl GeminiAdapter {
                 .stream_response(&conversation, system_prompt.clone(), &ctx)
                 .await?;
 
+            emit_usage(app_handle, usage_tracker, response.usage, UsageSource::Main);
             streaming.advance(response.block_count());
 
             if !response.has_function_calls() {
@@ -465,6 +475,10 @@ impl GeminiAdapter {
             Err(_) => return,
         };
 
+        if let Some(usage_metadata) = &response.usage_metadata {
+            streamed.update_usage(usage_metadata);
+        }
+
         if let Some(candidates) = response.candidates {
             for candidate in candidates {
                 if let Some(reason) = candidate.finish_reason {
@@ -504,6 +518,7 @@ impl GeminiAdapter {
         HeadlessResponse {
             text: response.text_content.clone(),
             tool_calls,
+            usage: response.usage,
         }
     }
 }
@@ -603,6 +618,7 @@ impl ProviderAdapter for GeminiAdapter {
         session: SessionState,
         app_handle: AppHandle,
         cancel_token: CancellationToken,
+        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<(), AgentError> {
         let gemini_contents: Vec<GeminiContent> =
             messages.iter().map(GeminiContent::from).collect();
@@ -620,6 +636,7 @@ impl ProviderAdapter for GeminiAdapter {
                 session,
                 &app_handle,
                 &cancel_token,
+                &usage_tracker,
             )
             .await;
 
@@ -665,6 +682,7 @@ impl ProviderAdapter for GeminiAdapter {
         tools: Vec<ToolDefinition>,
         session: SessionState,
         cancel_token: CancellationToken,
+        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<HeadlessResult, AgentError> {
         let system = build_system_prompt(self.app_system_prompt, &self.prompts, system_prompt);
         let executor = create_executor(
@@ -672,16 +690,20 @@ impl ProviderAdapter for GeminiAdapter {
             &self.execution,
             session,
             cancel_token.clone(),
+            Arc::clone(&usage_tracker),
         );
 
         run_headless_loop(
             self,
             messages,
-            Some(system),
-            tools,
-            &executor,
-            self.execution.max_tool_iterations,
-            &cancel_token,
+            HeadlessContext {
+                system_prompt: Some(system),
+                tools,
+                executor: &executor,
+                max_iterations: self.execution.max_tool_iterations,
+                cancel_token: &cancel_token,
+                usage_tracker,
+            },
         )
         .await
     }

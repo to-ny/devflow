@@ -2,7 +2,7 @@ pub mod anthropic;
 pub mod gemini;
 pub mod headless;
 
-pub use headless::run_headless_loop;
+pub use headless::{run_headless_loop, HeadlessContext};
 
 use std::path::Path;
 use std::sync::Arc;
@@ -93,18 +93,40 @@ pub(crate) fn build_system_prompt(
 }
 
 use super::tools::SessionState;
+use super::usage::{AgentUsagePayload, SessionUsageTracker, TokenUsage, UsageSource};
+
+pub(crate) fn emit_usage(
+    app_handle: &AppHandle,
+    tracker: &SessionUsageTracker,
+    usage: TokenUsage,
+    source: UsageSource,
+) {
+    if usage.input_tokens > 0 || usage.output_tokens > 0 {
+        let totals = tracker.add_tokens(usage.input_tokens, usage.output_tokens);
+        let _ = app_handle.emit(
+            "agent-usage",
+            AgentUsagePayload {
+                input_tokens: totals.input_tokens,
+                output_tokens: totals.output_tokens,
+                source,
+            },
+        );
+    }
+}
 
 pub(crate) fn create_executor(
     project_path: &Path,
     execution: &ExecutionConfig,
     session: SessionState,
     cancel_token: CancellationToken,
+    usage_tracker: Arc<SessionUsageTracker>,
 ) -> LocalExecutor {
     LocalExecutor::with_session(
         project_path.to_path_buf(),
         execution.timeout_secs,
         session,
         cancel_token,
+        usage_tracker,
     )
 }
 

@@ -8,6 +8,7 @@ mod subagent;
 mod web;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
@@ -18,6 +19,7 @@ pub use state::{PlanApproval, SessionState};
 use super::executor::ToolExecutor;
 use super::types::ToolName;
 use crate::agent::error::AgentError;
+use crate::agent::usage::SessionUsageTracker;
 
 #[cfg(windows)]
 use crate::git::wsl::{is_wsl_path, parse_wsl_path};
@@ -27,6 +29,7 @@ pub struct LocalExecutor {
     session: SessionState,
     shell: shell::ShellExecutor,
     cancel_token: CancellationToken,
+    usage_tracker: Arc<SessionUsageTracker>,
 }
 
 impl LocalExecutor {
@@ -37,6 +40,7 @@ impl LocalExecutor {
             timeout_secs,
             SessionState::new(),
             CancellationToken::new(),
+            Arc::new(SessionUsageTracker::new()),
         )
     }
 
@@ -45,6 +49,7 @@ impl LocalExecutor {
         timeout_secs: u64,
         session: SessionState,
         cancel_token: CancellationToken,
+        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Self {
         let ctx = ExecutionContext::new(working_dir.clone(), timeout_secs);
 
@@ -66,6 +71,7 @@ impl LocalExecutor {
             session,
             shell,
             cancel_token,
+            usage_tracker,
         }
     }
 
@@ -128,6 +134,7 @@ impl LocalExecutor {
             max_depth,
             0, // current_depth starts at 0
             &self.cancel_token,
+            Arc::clone(&self.usage_tracker),
         )
         .await
     }
@@ -340,6 +347,7 @@ mod tests {
             30,
             session.clone(),
             CancellationToken::new(),
+            Arc::new(SessionUsageTracker::new()),
         );
 
         executor

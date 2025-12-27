@@ -1,9 +1,10 @@
-use std::sync::{PoisonError, RwLock};
+use std::sync::{Arc, PoisonError, RwLock};
 
 use tauri::{AppHandle, Emitter, State};
 
 use super::state::AgentState;
 use super::types::{AgentStatus, AgentStatusPayload, ChatMessage};
+use super::usage::{SessionUsageTracker, UsageTotals};
 
 fn lock_error<T>(_: PoisonError<T>) -> String {
     "Lock poisoned".to_string()
@@ -13,6 +14,7 @@ fn lock_error<T>(_: PoisonError<T>) -> String {
 pub async fn agent_send_message(
     app_handle: AppHandle,
     state: State<'_, RwLock<AgentState>>,
+    usage_tracker: State<'_, Arc<SessionUsageTracker>>,
     project_path: String,
     messages: Vec<ChatMessage>,
     system_prompt: Option<String>,
@@ -50,8 +52,16 @@ pub async fn agent_send_message(
         (adapter, session, token)
     };
 
+    let tracker = Arc::clone(&*usage_tracker);
     let result = adapter
-        .send_message(messages, system_prompt, session, app_handle, cancel_token)
+        .send_message(
+            messages,
+            system_prompt,
+            session,
+            app_handle,
+            cancel_token,
+            tracker,
+        )
         .await;
 
     // Mark run as finished
@@ -131,4 +141,14 @@ pub async fn agent_has_pending_plan(state: State<'_, RwLock<AgentState>>) -> Res
     };
 
     Ok(session.has_pending_plan().await)
+}
+
+#[tauri::command]
+pub fn get_session_usage(tracker: State<'_, Arc<SessionUsageTracker>>) -> UsageTotals {
+    tracker.get_totals()
+}
+
+#[tauri::command]
+pub fn reset_session_usage(tracker: State<'_, Arc<SessionUsageTracker>>) {
+    tracker.reset();
 }

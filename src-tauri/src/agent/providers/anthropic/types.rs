@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent::types::{ChatMessage, MessageRole, ToolDefinition};
+use crate::agent::usage::TokenUsage;
 
 // === Request Types ===
 
@@ -151,6 +152,12 @@ pub struct MessageStartData {
     pub id: String,
     pub model: String,
     pub stop_reason: Option<String>,
+    pub usage: Option<MessageStartUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MessageStartUsage {
+    pub input_tokens: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,6 +185,7 @@ pub struct UsageData {
 pub struct StreamedResponse {
     pub content_blocks: Vec<ContentBlock>,
     pub stop_reason: Option<String>,
+    pub usage: TokenUsage,
     current_block_index: Option<u32>,
     current_tool_json: String,
 }
@@ -233,8 +241,17 @@ impl StreamedResponse {
         self.current_block_index = None;
     }
 
-    pub fn on_message_delta(&mut self, delta: MessageDeltaData) {
+    pub fn on_message_start(&mut self, message: &MessageStartData) {
+        if let Some(usage) = &message.usage {
+            self.usage.input_tokens = usage.input_tokens;
+        }
+    }
+
+    pub fn on_message_delta(&mut self, delta: MessageDeltaData, usage: Option<UsageData>) {
         self.stop_reason = delta.stop_reason;
+        if let Some(u) = usage {
+            self.usage.output_tokens = u.output_tokens;
+        }
     }
 
     pub fn has_tool_use(&self) -> bool {
@@ -372,10 +389,41 @@ mod tests {
 
         assert!(response.stop_reason.is_none());
 
-        response.on_message_delta(MessageDeltaData {
-            stop_reason: Some("end_turn".to_string()),
-        });
+        response.on_message_delta(
+            MessageDeltaData {
+                stop_reason: Some("end_turn".to_string()),
+            },
+            None,
+        );
 
         assert_eq!(response.stop_reason, Some("end_turn".to_string()));
+    }
+
+    #[test]
+    fn test_streamed_response_usage() {
+        let mut response = StreamedResponse::new();
+
+        assert_eq!(response.usage.input_tokens, 0);
+        assert_eq!(response.usage.output_tokens, 0);
+
+        // Simulate message_start with input tokens
+        response.on_message_start(&MessageStartData {
+            id: "msg_123".to_string(),
+            model: "claude-3".to_string(),
+            stop_reason: None,
+            usage: Some(MessageStartUsage { input_tokens: 100 }),
+        });
+
+        assert_eq!(response.usage.input_tokens, 100);
+        assert_eq!(response.usage.output_tokens, 0);
+
+        // Simulate message_delta with output tokens
+        response.on_message_delta(
+            MessageDeltaData { stop_reason: None },
+            Some(UsageData { output_tokens: 50 }),
+        );
+
+        assert_eq!(response.usage.input_tokens, 100);
+        assert_eq!(response.usage.output_tokens, 50);
     }
 }

@@ -3,15 +3,15 @@ pub mod config;
 pub mod git;
 mod menu;
 
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use tauri::{Listener, Manager};
 
 use agent::commands::{
     agent_approve_plan, agent_cancel, agent_clear_state, agent_has_pending_plan, agent_is_running,
-    agent_reject_plan, agent_send_message,
+    agent_reject_plan, agent_send_message, get_session_usage, reset_session_usage,
 };
-use agent::AgentState;
+use agent::{AgentState, SessionUsageTracker};
 use config::commands::{
     config_get_last_project, config_get_providers, config_load_project, config_project_exists,
     config_save_project, config_set_last_project,
@@ -34,6 +34,7 @@ pub fn run() {
                 .build(),
         )
         .manage(RwLock::new(AgentState::new()))
+        .manage(Arc::new(SessionUsageTracker::new()))
         .setup(|app| {
             menu::setup(app)?;
 
@@ -64,6 +65,8 @@ pub fn run() {
             agent_approve_plan,
             agent_reject_plan,
             agent_has_pending_plan,
+            get_session_usage,
+            reset_session_usage,
             git_is_repository,
             git_get_changed_files,
             git_get_file_diff_with_status,

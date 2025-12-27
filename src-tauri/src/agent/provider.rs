@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
@@ -5,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use super::error::AgentError;
 use super::tools::SessionState;
 use super::types::{ChatMessage, ToolDefinition};
+use super::usage::SessionUsageTracker;
 
 /// Result from headless execution
 pub struct HeadlessResult {
@@ -22,6 +25,7 @@ pub trait ProviderAdapter: Send + Sync {
         session: SessionState,
         app_handle: AppHandle,
         cancel_token: CancellationToken,
+        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<(), AgentError>;
 
     /// Run headless without UI - for sub-agents
@@ -33,6 +37,7 @@ pub trait ProviderAdapter: Send + Sync {
         tools: Vec<ToolDefinition>,
         session: SessionState,
         cancel_token: CancellationToken,
+        usage_tracker: Arc<SessionUsageTracker>,
     ) -> Result<HeadlessResult, AgentError>;
 
     fn model(&self) -> &str;
