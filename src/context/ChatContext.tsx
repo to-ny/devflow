@@ -398,7 +398,15 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   const approvePlan = useCallback(async () => {
     try {
-      await invoke("agent_approve_plan");
+      const approved = await invoke<boolean>("agent_approve_plan");
+      if (!approved) {
+        setState((prev) => ({
+          ...prev,
+          ...CLEAR_PENDING_PLAN,
+          error: "Plan approval failed - please try again",
+        }));
+        return;
+      }
       setState((prev) => ({ ...prev, ...CLEAR_PENDING_PLAN }));
     } catch (error) {
       setState((prev) => ({
@@ -411,7 +419,15 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
 
   const rejectPlan = useCallback(async (reason?: string) => {
     try {
-      await invoke("agent_reject_plan", { reason });
+      const rejected = await invoke<boolean>("agent_reject_plan", { reason });
+      if (!rejected) {
+        setState((prev) => ({
+          ...prev,
+          ...CLEAR_PENDING_PLAN,
+          error: "Plan rejection failed - please try again",
+        }));
+        return;
+      }
       setState((prev) => ({ ...prev, ...CLEAR_PENDING_PLAN }));
     } catch (error) {
       setState((prev) => ({
