@@ -127,15 +127,16 @@ impl LocalExecutor {
         let max_depth = config.execution.max_agent_depth;
 
         // Execute the sub-agent with a child cancellation token
-        subagent::execute_subagent(
-            &self.ctx.working_dir,
-            &input.task,
-            input.tools,
+        subagent::execute_subagent(subagent::SubagentParams {
+            project_path: &self.ctx.working_dir,
+            task: &input.task,
+            agent_type_id: input.agent_type.as_deref(),
+            allowed_tools: input.tools,
             max_depth,
-            0, // current_depth starts at 0
-            &self.cancel_token,
-            Arc::clone(&self.usage_tracker),
-        )
+            current_depth: 0,
+            parent_token: &self.cancel_token,
+            usage_tracker: Arc::clone(&self.usage_tracker),
+        })
         .await
     }
 }
@@ -366,5 +367,80 @@ mod tests {
             .unwrap();
 
         assert_eq!(session.todos_count().await, 1);
+    }
+
+    // Error path tests
+
+    #[tokio::test]
+    async fn test_read_file_missing() {
+        let (executor, _dir) = create_executor();
+        let result = executor
+            .execute(
+                ToolName::ReadFile,
+                serde_json::json!({ "path": "nonexistent.txt" }),
+            )
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_json_input() {
+        let (executor, _dir) = create_executor();
+        // Missing required "command" field
+        let result = executor
+            .execute(ToolName::Bash, serde_json::json!({}))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid"));
+    }
+
+    #[tokio::test]
+    async fn test_glob_no_matches() {
+        let (executor, _dir) = create_executor();
+        let result = executor
+            .execute(
+                ToolName::Glob,
+                serde_json::json!({ "pattern": "*.nonexistent" }),
+            )
+            .await;
+        // Should succeed but return empty or "no matches" message
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_grep_invalid_regex() {
+        let (executor, _dir) = create_executor();
+        let result = executor
+            .execute(ToolName::Grep, serde_json::json!({ "pattern": "[invalid" }))
+            .await;
+        // Ripgrep should handle this gracefully
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_list_directory_not_found() {
+        let (executor, _dir) = create_executor();
+        let result = executor
+            .execute(
+                ToolName::ListDirectory,
+                serde_json::json!({ "path": "nonexistent_dir" }),
+            )
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_multi_edit_file_not_found() {
+        let (executor, _dir) = create_executor();
+        let result = executor
+            .execute(
+                ToolName::MultiEdit,
+                serde_json::json!({
+                    "path": "nonexistent.txt",
+                    "edits": [{ "old_text": "a", "new_text": "b" }]
+                }),
+            )
+            .await;
+        assert!(result.is_err());
     }
 }

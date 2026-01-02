@@ -9,6 +9,7 @@ import {
   SearchSection,
   NotificationsSection,
   PromptsSection,
+  AgentPromptsSection,
   ToolsSection,
   type SidebarItem,
 } from "../components/settings";
@@ -25,6 +26,7 @@ const SECTIONS: SidebarSection[] = [
   { id: "search", label: "Search" },
   { id: "notifications", label: "Notifications" },
   { id: "prompts", label: "Prompts" },
+  { id: "agent-prompts", label: "Agent Prompts" },
   { id: "tools", label: "Tool Descriptions" },
 ];
 
@@ -132,6 +134,17 @@ export function SettingsPage() {
             onUpdatePrePostPrompt={form.updatePrePostPrompt}
             onResetPrePostPrompt={form.resetPrePostPrompt}
             onSetAgentsMd={form.setAgentsMd}
+          />
+        );
+
+      case "agent-prompts":
+        return (
+          <AgentPromptsSection
+            config={form.projectConfig!}
+            defaultAgentPrompts={form.defaultAgentPrompts}
+            agentTypes={form.agentTypes}
+            onUpdateAgentPrompt={form.updateAgentPrompt}
+            onResetAgentPrompt={form.resetAgentPrompt}
           />
         );
 

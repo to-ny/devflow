@@ -10,9 +10,12 @@ use super::types::{ChatMessage, ToolDefinition};
 use super::usage::SessionUsageTracker;
 
 /// Result from headless execution
+#[derive(Debug)]
 pub struct HeadlessResult {
     pub text: String,
     pub tool_calls_made: u32,
+    /// Stop reason from the final response (end_turn, tool_use, max_tokens)
+    pub stop_reason: Option<String>,
 }
 
 /// Runtime context for agent execution

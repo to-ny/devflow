@@ -1,43 +1,19 @@
-Reads a file from the filesystem. You can access any file directly by using this tool.
+Reads a file from the local filesystem. You can access any file directly by using this tool.
 
-## Usage
+**IMPORTANT**: ALWAYS use this tool to read files. NEVER use bash commands like `cat`, `head`, `tail`, or `less` to read file contents. This tool is optimized for the assistant's context and provides better results.
 
-- The path parameter should be relative to the project root
-- By default, reads up to 2000 lines starting from the beginning
-- You can optionally specify offset and limit for large files
+Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+
+Usage:
+- The file_path parameter must be an absolute path, not a relative path
+- By default, it reads up to 2000 lines starting from the beginning of the file
+- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
 - Any lines longer than 2000 characters will be truncated
-- Results are returned with line numbers starting at 1
-
-## Parameters
-
-- `path`: Relative path from project root (required)
-- `offset`: Starting line number (optional)
-- `limit`: Number of lines to read (optional)
-
-## When to Use
-
-- Reading source code files
-- Understanding file contents before editing
-- Checking configuration files
-- Reviewing existing implementations
-
-## Important Notes
-
-- Assume this tool can read all files in the project
-- If a file doesn't exist, an error will be returned
-- For Jupyter notebooks (.ipynb files), use notebook_read instead
-- It's always better to speculatively read multiple files in parallel that are potentially useful
-- If you read a file that exists but has empty contents, you will receive a warning
-- Always read a file before using edit_file to ensure exact text matching
-
-## Examples
-
-Read entire file:
-```json
-{"path": "src/main.rs"}
-```
-
-Read specific range:
-```json
-{"path": "src/lib.rs", "offset": 100, "limit": 50}
-```
+- Results are returned using cat -n format, with line numbers starting at 1
+- This tool allows reading images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as the model is multimodal.
+- This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
+- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
+- This tool can only read files, not directories. To read a directory, use an ls command via the bash tool.
+- You can call multiple tools in a single response. It is always better to speculatively read multiple potentially useful files in parallel.
+- You will regularly be asked to read screenshots. If the user provides a path to a screenshot, ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths.
+- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.

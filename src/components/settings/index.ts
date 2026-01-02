@@ -7,4 +7,5 @@ export { ExecutionSection } from "./ExecutionSection";
 export { SearchSection } from "./SearchSection";
 export { NotificationsSection } from "./NotificationsSection";
 export { PromptsSection } from "./PromptsSection";
+export { AgentPromptsSection } from "./AgentPromptsSection";
 export { ToolsSection } from "./ToolsSection";

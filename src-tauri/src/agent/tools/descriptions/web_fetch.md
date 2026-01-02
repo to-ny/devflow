@@ -1,46 +1,15 @@
-Fetches content from a URL and processes it to extract information.
+- Fetches content from a specified URL and processes it using an AI model
+- Takes a URL and a prompt as input
+- Fetches the URL content, converts HTML to markdown
+- Processes the content with the prompt using a small, fast model
+- Returns the model's response about the content
+- Use this tool when you need to retrieve and analyze web content
 
-## Usage
-
-- Takes a URL and a prompt describing what to extract
-- Fetches the URL content and converts HTML to markdown
-- Processes the content with the prompt to extract relevant information
-- Returns the processed response about the content
-
-## Parameters
-
-- `url`: Full URL to fetch (required, must be valid HTTPS URL)
-- `prompt`: What information to extract from the page (required)
-
-## Features
-
-- HTTP URLs are automatically upgraded to HTTPS
-- Results are cached for 15 minutes for faster repeated access
-- Large content may be summarized
-- HTML is converted to readable markdown
-
-## When to Use
-
-- Reading documentation from the web
-- Checking API references
-- Fetching external resources
-- Getting information from specific web pages
-
-## When NOT to Use
-
-- Reading local files (use read_file instead)
-- General web searches (use search_web instead)
-- Accessing internal/private URLs
-
-## Handling Redirects
-
-When a URL redirects to a different host, the tool will inform you and provide the redirect URL. Make a new web_fetch request with that URL to fetch the content.
-
-## Example
-
-```json
-{
-  "url": "https://docs.example.com/api/v2/endpoints",
-  "prompt": "List all available API endpoints with their HTTP methods and descriptions"
-}
-```
+Usage notes:
+  - The URL must be a fully-formed valid URL
+  - HTTP URLs will be automatically upgraded to HTTPS
+  - The prompt should describe what information you want to extract from the page
+  - This tool is read-only and does not modify any files
+  - Results may be summarized if the content is very large
+  - Includes a self-cleaning 15-minute cache for faster responses when repeatedly accessing the same URL
+  - When a URL redirects to a different host, the tool will inform you and provide the redirect URL in a special format. You should then make a new web_fetch request with the redirect URL to fetch the content.

@@ -179,6 +179,7 @@ mod tests {
             system_prompt: None,
             tool_descriptions: None,
             extraction_prompt: None,
+            agent_prompts: None,
         }
     }
 
@@ -248,6 +249,7 @@ mod tests {
             system_prompt: None,
             tool_descriptions: None,
             extraction_prompt: None,
+            agent_prompts: None,
         };
 
         ConfigService::save_project_config(temp_dir.path(), &config).unwrap();

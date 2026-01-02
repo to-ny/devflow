@@ -30,6 +30,7 @@ describe("Contract Tests", () => {
       system_prompt: null,
       extraction_prompt: null,
       tool_descriptions: null,
+      agent_prompts: null,
     };
 
     const roundTripped: ProjectConfig = JSON.parse(JSON.stringify(config));

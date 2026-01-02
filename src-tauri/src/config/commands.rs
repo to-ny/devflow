@@ -5,7 +5,10 @@ use tauri::{AppHandle, Emitter};
 
 use super::service::ConfigService;
 use super::types::{ConfigChangedPayload, ProjectConfig, ProviderInfo};
-use crate::agent::{get_tool_descriptions, DEFAULT_EXTRACTION_PROMPT, DEFAULT_SYSTEM_PROMPT};
+use crate::agent::{
+    get_agent_prompts, get_agent_type_infos, get_tool_descriptions, AgentTypeInfo,
+    DEFAULT_EXTRACTION_PROMPT, DEFAULT_SYSTEM_PROMPT,
+};
 
 #[tauri::command]
 pub fn config_get_last_project() -> Result<Option<String>, String> {
@@ -85,6 +88,20 @@ pub fn config_save_project(
 #[tauri::command]
 pub fn config_get_tool_descriptions() -> HashMap<String, String> {
     get_tool_descriptions()
+}
+
+// Agent Prompts (read-only, returns embedded defaults)
+
+#[tauri::command]
+pub fn config_get_agent_prompts() -> HashMap<String, String> {
+    get_agent_prompts()
+}
+
+// Agent Types (read-only, returns metadata for frontend display)
+
+#[tauri::command]
+pub fn config_get_agent_types() -> Vec<AgentTypeInfo> {
+    get_agent_type_infos()
 }
 
 // Default System Prompt Command (read-only, returns embedded default)

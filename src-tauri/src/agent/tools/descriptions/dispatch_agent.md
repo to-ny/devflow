@@ -1,51 +1,57 @@
-Launch a sub-agent to handle complex tasks autonomously.
+Launch a specialized agent to handle complex, multi-step tasks autonomously.
 
-The sub-agent has access to file and search tools (read_file, glob, grep, list_directory, web_fetch, search_web) and works independently, returning results when complete.
+The dispatch_agent tool launches sub-agents with specific capabilities. Each agent type has its own system prompt and tool access tailored to its purpose.
 
-## Parameters
+## Agent Types
 
-- `task`: Detailed task instructions for the sub-agent (required)
-- `tools`: Optional list of tool names to allow (default: read-only tools)
+| Type | Purpose | Tool Access |
+|------|---------|-------------|
+| `explore` | Fast codebase exploration (default) | read_file, glob, grep, list_directory, bash, web_fetch, search_web |
+| `plan` | Design implementation strategies | read_file, glob, grep, list_directory, bash, dispatch_agent |
+| `pr-review` | Review pull requests | read_file, glob, grep, bash |
+| `pr-comments` | Fetch and analyze PR comments | bash, web_fetch |
+| `security-review` | Security-focused code review | read_file, glob, grep |
+| `summarize` | Summarize conversations | None (text only) |
+| `bash-summarize` | Summarize command output | None (text only) |
+| `session-title` | Generate titles and branch names | None (text only) |
 
 ## When to Use
 
-- Task requires extensive searching or exploration
-- Searching for a keyword like "config" or "logger"
-- Questions like "which file does X?"
-- Multiple uncertain steps needed
-- Work can be parallelized
-- Open-ended exploration where exact steps aren't known
+Use dispatch_agent for:
+- Open-ended codebase exploration that may require multiple search rounds
+- Specialized tasks like PR review or security analysis
+- Tasks that benefit from focused, autonomous execution
 
 ## When NOT to Use
 
-- Reading a specific known file (use read_file directly)
-- Searching for a specific class like "class Foo" (use glob)
-- Searching within 2-3 specific files (use read_file)
-- Simple, well-defined operations
-- Tasks requiring user interaction
-- Writing code (parent agent should do this)
+- If you want to read a specific file, use read_file directly
+- If searching for a specific class like "class Foo", use glob directly
+- If searching within 2-3 known files, use read_file directly
 
-## Usage Guidelines
+## Usage Notes
 
-1. **Launch concurrently** - Launch multiple agents in parallel when possible
-2. **Results not visible to user** - You must summarize results for the user
-3. **Stateless** - Each agent invocation is independent; include all context in the task
-4. **Trust outputs** - Agent results should generally be trusted
-5. **Be specific** - Clearly tell the agent:
-   - Whether to write code or just research
-   - Exactly what information to return
-   - All relevant context for the task
+- Provide clear, detailed task descriptions
+- Launch multiple agents in parallel when tasks are independent
+- The agent's output is returned to you, not the user - summarize results for the user
+- Trust agent outputs and provide comprehensive prompts
+- Specify whether the agent should research or write code
 
-## Example
+## Examples
 
-```json
-{
-  "task": "Search the codebase to find all files that handle user authentication. Look for login, logout, session management, and token handling. Return a list of file paths with brief descriptions of what each file does."
-}
-```
+<example>
+user: "Where is the authentication logic?"
+assistant: I'll use dispatch_agent to search the codebase.
+*Uses dispatch_agent with task: "Find all files that handle user authentication, including login, logout, and session management." and agent_type: "explore"*
+</example>
 
-```json
-{
-  "task": "Find where the API rate limiting is implemented. Search for rate limit, throttle, and request limit patterns. Return the file paths and relevant code snippets."
-}
-```
+<example>
+user: "Review PR #123"
+assistant: Let me review that pull request.
+*Uses dispatch_agent with task: "Review PR #123 for code quality, bugs, and security issues." and agent_type: "pr-review"*
+</example>
+
+<example>
+user: "Check the security of the new API endpoints"
+assistant: I'll run a security review.
+*Uses dispatch_agent with task: "Analyze the API endpoint code for security vulnerabilities including injection, auth bypasses, and data exposure." and agent_type: "security-review"*
+</example>

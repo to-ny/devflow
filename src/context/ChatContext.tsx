@@ -557,14 +557,35 @@ export function ChatProvider({ children, projectPath }: ChatProviderProps) {
         "agent-error",
         (event) => {
           if (cancelled || !isMounted.current) return;
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: event.payload.error,
-            streamBlocks: [],
-            streamMessageId: null,
-            agentStatus: "error" as AgentStatus,
-          }));
+          setState((prev) => {
+            // Preserve any streaming content as a message before clearing
+            if (prev.streamBlocks.length === 0) {
+              return {
+                ...prev,
+                isLoading: false,
+                error: event.payload.error,
+                streamBlocks: [],
+                streamMessageId: null,
+                agentStatus: "error" as AgentStatus,
+              };
+            }
+
+            const errorMessage: ChatMessage = {
+              id: generateId(),
+              role: "assistant",
+              content_blocks: streamBlocksToContentBlocks(prev.streamBlocks),
+            };
+
+            return {
+              ...prev,
+              messages: [...prev.messages, errorMessage],
+              isLoading: false,
+              error: event.payload.error,
+              streamBlocks: [],
+              streamMessageId: null,
+              agentStatus: "error" as AgentStatus,
+            };
+          });
         },
       );
 

@@ -3,8 +3,14 @@ pub mod compaction;
 pub mod gemini;
 pub mod headless;
 
+#[cfg(test)]
+pub mod mock;
+
 // Compaction utilities are used internally by anthropic and gemini adapters via `super::compaction::`
-pub use headless::{run_headless_loop, HeadlessContext};
+pub use headless::{
+    run_headless_loop, HeadlessContext, HeadlessResponse, HeadlessStreamer,
+    ToolResult as HeadlessToolResult,
+};
 
 use std::path::Path;
 use std::sync::Arc;
@@ -187,7 +193,7 @@ pub(crate) async fn execute_tool_calls(
             },
         );
 
-        let tool_name = ToolName::from_str(&call.name)
+        let tool_name = ToolName::parse(&call.name)
             .ok_or_else(|| AgentError::UnknownTool(call.name.clone()))?;
 
         let (output, is_error) = tokio::select! {

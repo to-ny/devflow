@@ -113,8 +113,13 @@ Location: `<project>/.devflow/config.toml`
 Schema:
 - `[agent]`: provider ("anthropic" | "gemini"), model (string), api_key_env (string, env var name), max_tokens (int)
 - `[prompts]`: pre (string), post (string)
-- `[execution]`: timeout_secs (int), max_tool_iterations (int)
+- `[execution]`: timeout_secs (int), max_tool_iterations (int), max_agent_depth (int)
 - `[notifications]`: on_complete, on_error (arrays, values: "sound", "window")
+- `[search]`: max_results (int), blocked_domains (array)
+- `system_prompt` (optional string): override default system prompt
+- `extraction_prompt` (optional string): override context compaction prompt
+- `[tool_descriptions]` (optional): per-tool description overrides
+- `[agent_prompts]` (optional): per-agent prompt overrides
 
 All agent fields are required (no defaults).
 
@@ -175,5 +180,6 @@ Tools (LocalExecutor):
 
 Tools (AgentOrchestrator):
 - search_web: `{ query, allowed_domains?, blocked_domains? }` — search web via external API
-- dispatch_agent: `{ task, tools? }` — spawn sub-agent for complex tasks
+- dispatch_agent: `{ task, agent_type?, tools? }` — spawn sub-agent for complex tasks
+  - agent_type: explore, plan, summarize, bash-summarize, session-title, pr-review, pr-comments, security-review
 - submit_plan: `{ plan }` — submit plan for user approval

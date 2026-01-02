@@ -1,34 +1,8 @@
-Writes a file to the filesystem. This will create or overwrite the file at the specified path.
+Writes a file to the local filesystem.
 
-## Usage
-
-- The path parameter should be relative to the project root
-- The content parameter is the complete file content to write
-- This tool will overwrite existing files completely
-- Parent directories are created automatically if they don't exist
-
-## Prerequisites
-
-- If this is an existing file, you MUST use read_file first to read its contents
-- This tool will fail if you did not read an existing file first
-
-## Important Rules
-
-- ALWAYS prefer editing existing files using edit_file instead of write_file
-- NEVER write new files unless explicitly required by the task
-- NEVER proactively create documentation files (*.md) or README files
-- Only create documentation files if explicitly requested by the user
-- Only use emojis if the user explicitly requests it
-
-## When to Use
-
-- Creating new source files that don't exist
-- Generating configuration files
-- Creating new test files
-- Only when edit_file is not appropriate
-
-## When NOT to Use
-
-- Modifying existing files (use edit_file instead)
-- Making targeted changes to code (use edit_file instead)
-- Creating documentation without being asked
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the read_file tool first to read the file's contents. This tool will fail if you did not read the file first.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.

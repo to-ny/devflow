@@ -595,6 +595,7 @@ impl GeminiAdapter {
             text: response.text_content.clone(),
             tool_calls,
             usage: response.usage,
+            stop_reason: response.finish_reason.clone(),
         }
     }
 }

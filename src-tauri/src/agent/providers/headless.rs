@@ -24,11 +24,13 @@ pub struct ToolResult {
     pub is_error: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct HeadlessResponse {
     pub text: String,
     pub tool_calls: Vec<ToolCall>,
     pub usage: TokenUsage,
+    /// Stop reason from the model (end_turn, tool_use, max_tokens)
+    pub stop_reason: Option<String>,
 }
 
 /// Execution context for headless (sub-agent) runs.
@@ -108,6 +110,7 @@ pub async fn run_headless_loop<S: HeadlessStreamer>(
             return Ok(HeadlessResult {
                 text: final_text,
                 tool_calls_made: iteration,
+                stop_reason: response.stop_reason,
             });
         }
 
@@ -123,7 +126,7 @@ pub async fn run_headless_loop<S: HeadlessStreamer>(
 
         let mut results = Vec::new();
         for tc in &response.tool_calls {
-            let tool_name = ToolName::from_str(&tc.name)
+            let tool_name = ToolName::parse(&tc.name)
                 .ok_or_else(|| AgentError::UnknownTool(tc.name.clone()))?;
 
             let (output, is_error) = match ctx.executor.execute(tool_name, tc.input.clone()).await {

@@ -8,6 +8,12 @@ import type {
   ProviderInfo,
 } from "../types/config";
 
+export interface AgentTypeInfo {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface FormValidationErrors {
   model?: string;
   api_key_env?: string;
@@ -35,6 +41,8 @@ export interface UseSettingsFormReturn {
   defaultSystemPrompt: string;
   defaultExtractionPrompt: string;
   defaultToolDescriptions: Record<string, string>;
+  defaultAgentPrompts: Record<string, string>;
+  agentTypes: AgentTypeInfo[];
   projectConfig: ProjectConfig | null;
   agentsMd: string | null;
 
@@ -61,6 +69,8 @@ export interface UseSettingsFormReturn {
   resetPrePostPrompt: (field: "pre" | "post") => void;
   updateToolDescription: (tool: string, value: string) => void;
   resetToolDescription: (tool: string) => void;
+  updateAgentPrompt: (agentId: string, value: string) => void;
+  resetAgentPrompt: (agentId: string) => void;
   handleProviderChange: (providerId: string) => void;
   setAgentsMd: (value: string | null) => void;
 }
@@ -83,6 +93,10 @@ export function useSettingsForm({
   const [defaultToolDescriptions, setDefaultToolDescriptions] = useState<
     Record<string, string>
   >({});
+  const [defaultAgentPrompts, setDefaultAgentPrompts] = useState<
+    Record<string, string>
+  >({});
+  const [agentTypes, setAgentTypes] = useState<AgentTypeInfo[]>([]);
 
   // Project config
   const [projectConfig, setProjectConfig] = useState<ProjectConfig | null>(
@@ -116,17 +130,23 @@ export function useSettingsForm({
           systemPrompt,
           extractionPrompt,
           toolDescriptions,
+          agentPrompts,
+          agentTypesData,
         ] = await Promise.all([
           invoke<ProviderInfo[]>("config_get_providers"),
           invoke<string>("config_get_default_system_prompt"),
           invoke<string>("config_get_default_extraction_prompt"),
           invoke<Record<string, string>>("config_get_tool_descriptions"),
+          invoke<Record<string, string>>("config_get_agent_prompts"),
+          invoke<AgentTypeInfo[]>("config_get_agent_types"),
         ]);
 
         setProviders(providersData);
         setDefaultSystemPrompt(systemPrompt);
         setDefaultExtractionPrompt(extractionPrompt);
         setDefaultToolDescriptions(toolDescriptions);
+        setDefaultAgentPrompts(agentPrompts);
+        setAgentTypes(agentTypesData);
 
         if (projectPath) {
           const config = await invoke<ProjectConfig>("config_load_project", {
@@ -385,6 +405,48 @@ export function useSettingsForm({
     setSuccessMessage(null);
   }, []);
 
+  const updateAgentPrompt = useCallback(
+    (agentId: string, value: string) => {
+      setProjectConfig((prev) => {
+        if (!prev) return prev;
+        const defaultPrompt = defaultAgentPrompts[agentId];
+        const currentEffectiveValue =
+          prev.agent_prompts?.[agentId] ?? defaultPrompt;
+
+        if (value === currentEffectiveValue) return prev;
+
+        if (value === defaultPrompt) {
+          if (!prev.agent_prompts) return prev;
+          const updated = { ...prev.agent_prompts };
+          delete updated[agentId];
+          return {
+            ...prev,
+            agent_prompts: Object.keys(updated).length > 0 ? updated : null,
+          };
+        }
+
+        const current = prev.agent_prompts || {};
+        return { ...prev, agent_prompts: { ...current, [agentId]: value } };
+      });
+      setSuccessMessage(null);
+    },
+    [defaultAgentPrompts],
+  );
+
+  const resetAgentPrompt = useCallback((agentId: string) => {
+    setProjectConfig((prev) => {
+      if (!prev) return prev;
+      if (!prev.agent_prompts) return prev;
+      const updated = { ...prev.agent_prompts };
+      delete updated[agentId];
+      return {
+        ...prev,
+        agent_prompts: Object.keys(updated).length > 0 ? updated : null,
+      };
+    });
+    setSuccessMessage(null);
+  }, []);
+
   const handleProviderChange = useCallback(
     (providerId: string) => {
       const provider = providers.find((p) => p.id === providerId);
@@ -452,6 +514,8 @@ export function useSettingsForm({
     defaultSystemPrompt,
     defaultExtractionPrompt,
     defaultToolDescriptions,
+    defaultAgentPrompts,
+    agentTypes,
     projectConfig,
     agentsMd,
     isDirty,
@@ -470,6 +534,8 @@ export function useSettingsForm({
     resetPrePostPrompt,
     updateToolDescription,
     resetToolDescription,
+    updateAgentPrompt,
+    resetAgentPrompt,
     handleProviderChange,
     setAgentsMd: handleSetAgentsMd,
   };

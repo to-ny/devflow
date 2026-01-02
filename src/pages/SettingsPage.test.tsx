@@ -65,6 +65,7 @@ const mockConfig: ProjectConfig = {
   system_prompt: null,
   extraction_prompt: null,
   tool_descriptions: null,
+  agent_prompts: null,
 };
 
 const mockDefaultSystemPrompt = "You are a helpful assistant.";
@@ -73,6 +74,16 @@ const mockToolDescriptions: Record<string, string> = {
   bash: "Execute bash commands",
   read_file: "Read file contents",
 };
+
+const mockAgentPrompts: Record<string, string> = {
+  explore: "Explore agent prompt",
+  plan: "Plan agent prompt",
+};
+
+const mockAgentTypes = [
+  { id: "explore", name: "Explore", description: "Codebase exploration" },
+  { id: "plan", name: "Plan", description: "Implementation planning" },
+];
 
 describe("SettingsPage", () => {
   beforeEach(() => {
@@ -95,6 +106,12 @@ describe("SettingsPage", () => {
       }
       if (cmd === "config_get_tool_descriptions") {
         return Promise.resolve(mockToolDescriptions);
+      }
+      if (cmd === "config_get_agent_prompts") {
+        return Promise.resolve(mockAgentPrompts);
+      }
+      if (cmd === "config_get_agent_types") {
+        return Promise.resolve(mockAgentTypes);
       }
       if (cmd === "config_load_agents_md") {
         return Promise.resolve(null);
@@ -328,6 +345,65 @@ describe("SettingsPage", () => {
           name: "Save Settings",
         });
         expect(saveButton).toBeEnabled();
+      });
+    });
+  });
+
+  describe("agent prompts section", () => {
+    it("shows Agent Prompts in sidebar", async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText("Loading settings..."),
+        ).not.toBeInTheDocument();
+      });
+
+      const agentPromptsButton = screen.getByRole("button", {
+        name: /Agent Prompts/i,
+      });
+      expect(agentPromptsButton).toBeInTheDocument();
+    });
+
+    it("navigates to Agent Prompts section", async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText("Loading settings..."),
+        ).not.toBeInTheDocument();
+      });
+
+      const agentPromptsButton = screen.getByRole("button", {
+        name: /Agent Prompts/i,
+      });
+      await userEvent.click(agentPromptsButton);
+
+      // Check that Agent Prompts header is shown
+      await waitFor(() => {
+        expect(
+          screen.getByText("Configure prompts for specialized sub-agents"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows agent type dropdown", async () => {
+      render(<SettingsPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText("Loading settings..."),
+        ).not.toBeInTheDocument();
+      });
+
+      const agentPromptsButton = screen.getByRole("button", {
+        name: /Agent Prompts/i,
+      });
+      await userEvent.click(agentPromptsButton);
+
+      await waitFor(() => {
+        // Agent types from mock should be in dropdown
+        expect(screen.getByRole("combobox")).toBeInTheDocument();
       });
     });
   });

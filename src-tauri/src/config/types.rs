@@ -49,6 +49,9 @@ pub struct ProjectConfig {
     /// Custom tool descriptions (None = use defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_descriptions: Option<HashMap<String, String>>,
+    /// Custom agent prompts (None = use defaults)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_prompts: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

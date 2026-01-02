@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod config;
+pub mod evals;
 pub mod git;
 mod menu;
 
@@ -13,10 +14,10 @@ use agent::commands::{
 };
 use agent::{AgentState, SessionUsageTracker};
 use config::commands::{
-    config_get_default_extraction_prompt, config_get_default_system_prompt,
-    config_get_last_project, config_get_providers, config_get_tool_descriptions,
-    config_load_agents_md, config_load_project, config_project_exists, config_save_agents_md,
-    config_save_project, config_set_last_project,
+    config_get_agent_prompts, config_get_agent_types, config_get_default_extraction_prompt,
+    config_get_default_system_prompt, config_get_last_project, config_get_providers,
+    config_get_tool_descriptions, config_load_agents_md, config_load_project,
+    config_project_exists, config_save_agents_md, config_save_project, config_set_last_project,
 };
 use git::commands::{
     git_get_changed_files, git_get_file_diff_with_status, git_is_repository, git_stage_all,
@@ -80,6 +81,8 @@ pub fn run() {
             config_get_providers,
             config_save_project,
             config_get_tool_descriptions,
+            config_get_agent_prompts,
+            config_get_agent_types,
             config_get_default_system_prompt,
             config_get_default_extraction_prompt,
             config_load_agents_md,

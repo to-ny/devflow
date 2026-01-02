@@ -17,4 +17,8 @@ extraction_prompt: string | null,
 /**
  * Custom tool descriptions (None = use defaults)
  */
-tool_descriptions: { [key in string]?: string } | null, };
+tool_descriptions: { [key in string]?: string } | null, 
+/**
+ * Custom agent prompts (None = use defaults)
+ */
+agent_prompts: { [key in string]?: string } | null, };

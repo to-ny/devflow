@@ -547,6 +547,7 @@ impl AnthropicAdapter {
             text,
             tool_calls,
             usage: response.usage,
+            stop_reason: response.stop_reason.clone(),
         }
     }
 }

@@ -339,10 +339,15 @@ static TOOL_DEFINITIONS: Lazy<Vec<ToolDefinition>> = Lazy::new(|| {
                         "type": "string",
                         "description": "Detailed task for the sub-agent to complete"
                     },
+                    "agent_type": {
+                        "type": "string",
+                        "description": "Agent type to use: explore (default), plan, pr-review, pr-comments, security-review, summarize, bash-summarize, session-title",
+                        "enum": ["explore", "plan", "pr-review", "pr-comments", "security-review", "summarize", "bash-summarize", "session-title"]
+                    },
                     "tools": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Optional list of tools to allow (default: read-only tools)"
+                        "description": "Override allowed tools for the agent (optional)"
                     }
                 },
                 "required": ["task"]
@@ -416,4 +421,197 @@ pub fn get_tool_descriptions() -> std::collections::HashMap<String, String> {
         descriptions::SUBMIT_PLAN.to_string(),
     );
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// All expected tool names
+    const EXPECTED_TOOLS: &[&str] = &[
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "multi_edit",
+        "list_directory",
+        "glob",
+        "grep",
+        "notebook_read",
+        "notebook_edit",
+        "web_fetch",
+        "search_web",
+        "todo_read",
+        "todo_write",
+        "dispatch_agent",
+        "submit_plan",
+    ];
+
+    #[test]
+    fn test_all_tools_have_definitions() {
+        let definitions = get_tool_definitions();
+        let defined_names: Vec<&str> = definitions.iter().map(|d| d.name.as_str()).collect();
+
+        for expected in EXPECTED_TOOLS {
+            assert!(
+                defined_names.contains(expected),
+                "Tool '{}' missing from definitions",
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_tools_have_descriptions() {
+        let descriptions = get_tool_descriptions();
+
+        for expected in EXPECTED_TOOLS {
+            assert!(
+                descriptions.contains_key(*expected),
+                "Tool '{}' missing from descriptions",
+                expected
+            );
+            assert!(
+                !descriptions.get(*expected).unwrap().is_empty(),
+                "Tool '{}' has empty description",
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_schemas_are_valid_json() {
+        let definitions = get_tool_definitions();
+
+        for tool in &definitions {
+            // Verify it's a valid JSON object with expected structure
+            assert!(
+                tool.input_schema.is_object(),
+                "Tool '{}' schema is not an object",
+                tool.name
+            );
+
+            let schema = tool.input_schema.as_object().unwrap();
+
+            // Must have "type": "object"
+            assert_eq!(
+                schema.get("type").and_then(|v| v.as_str()),
+                Some("object"),
+                "Tool '{}' schema must have type: object",
+                tool.name
+            );
+
+            // Must have "properties" object
+            assert!(
+                schema
+                    .get("properties")
+                    .map(|v| v.is_object())
+                    .unwrap_or(false),
+                "Tool '{}' schema must have properties object",
+                tool.name
+            );
+
+            // Must have "required" array
+            assert!(
+                schema
+                    .get("required")
+                    .map(|v| v.is_array())
+                    .unwrap_or(false),
+                "Tool '{}' schema must have required array",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_schemas_required_fields_exist_in_properties() {
+        let definitions = get_tool_definitions();
+
+        for tool in &definitions {
+            let schema = tool.input_schema.as_object().unwrap();
+            let properties = schema.get("properties").unwrap().as_object().unwrap();
+            let required = schema.get("required").unwrap().as_array().unwrap();
+
+            for req in required {
+                let field_name = req.as_str().unwrap();
+                assert!(
+                    properties.contains_key(field_name),
+                    "Tool '{}' requires '{}' but it's not in properties",
+                    tool.name,
+                    field_name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_toolname_enum_covers_all_definitions() {
+        let definitions = get_tool_definitions();
+
+        for tool in &definitions {
+            assert!(
+                ToolName::parse(&tool.name).is_some(),
+                "Tool '{}' has no corresponding ToolName variant",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_definitions_and_descriptions_are_in_sync() {
+        let definitions = get_tool_definitions();
+        let descriptions = get_tool_descriptions();
+
+        let def_names: std::collections::HashSet<_> =
+            definitions.iter().map(|d| d.name.clone()).collect();
+        let desc_names: std::collections::HashSet<_> = descriptions.keys().cloned().collect();
+
+        assert_eq!(
+            def_names, desc_names,
+            "Tool definitions and descriptions are out of sync"
+        );
+    }
+
+    #[test]
+    fn test_description_length_limits() {
+        // Descriptions should be substantial but not exceed API limits
+        let descriptions = get_tool_descriptions();
+
+        for (name, desc) in &descriptions {
+            assert!(
+                desc.len() >= 50,
+                "Tool '{}' description is too short ({} chars)",
+                name,
+                desc.len()
+            );
+            assert!(
+                desc.len() <= 10000,
+                "Tool '{}' description is too long ({} chars)",
+                name,
+                desc.len()
+            );
+        }
+    }
+
+    #[test]
+    fn test_dispatch_agent_schema_has_agent_types() {
+        let definitions = get_tool_definitions();
+        let dispatch = definitions
+            .iter()
+            .find(|d| d.name == "dispatch_agent")
+            .expect("dispatch_agent not found");
+
+        let schema = dispatch.input_schema.as_object().unwrap();
+        let properties = schema.get("properties").unwrap().as_object().unwrap();
+        let agent_type = properties.get("agent_type").unwrap().as_object().unwrap();
+
+        // Verify enum values exist
+        let enum_values = agent_type.get("enum").unwrap().as_array().unwrap();
+        assert!(!enum_values.is_empty(), "agent_type enum is empty");
+
+        // Verify expected agent types are present
+        let values: Vec<&str> = enum_values.iter().filter_map(|v| v.as_str()).collect();
+        assert!(values.contains(&"explore"), "Missing 'explore' agent type");
+        assert!(values.contains(&"plan"), "Missing 'plan' agent type");
+    }
 }

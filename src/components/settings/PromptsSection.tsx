@@ -44,23 +44,25 @@ export function PromptsSection({
   const [selectedPrompt, setSelectedPrompt] = useState<PromptType>("system");
 
   const getPromptValue = (type: PromptType): string => {
-    if (type === "system") {
-      return config.system_prompt ?? defaultSystemPrompt;
-    }
-    if (type === "extraction") {
-      return config.extraction_prompt ?? defaultExtractionPrompt;
-    }
-    if (type === "agents-md") {
-      return agentsMd || "";
-    }
-    return config.prompts[type] || "";
+    const promptValues: { [key in PromptType]: string } = {
+      system: config.system_prompt ?? defaultSystemPrompt,
+      extraction: config.extraction_prompt ?? defaultExtractionPrompt,
+      "agents-md": agentsMd || "",
+      pre: config.prompts["pre"] || "",
+      post: config.prompts["post"] || "",
+    };
+    return promptValues[type];
   };
 
   const isPromptCustom = (type: PromptType): boolean => {
-    if (type === "agents-md") return false;
-    if (type === "system") return isPresent(config.system_prompt);
-    if (type === "extraction") return isPresent(config.extraction_prompt);
-    return (config.prompts[type] || "").length > 0;
+    const customValues: { [key in PromptType]: boolean } = {
+      "agents-md": false,
+      system: isPresent(config.system_prompt),
+      extraction: isPresent(config.extraction_prompt),
+      pre: (config.prompts["pre"] || "").length > 0,
+      post: (config.prompts["post"] || "").length > 0,
+    };
+    return customValues[type];
   };
 
   const promptHasDefault = (type: PromptType): boolean => {
@@ -84,9 +86,10 @@ export function PromptsSection({
       onResetSystemPrompt();
     } else if (type === "extraction") {
       onResetExtractionPrompt();
-    } else if (type !== "agents-md") {
+    } else if (type === "pre" || type === "post") {
       onResetPrePostPrompt(type);
     }
+    // agents-md has no reset
   };
 
   return (
