@@ -243,3 +243,30 @@ pub struct AgentCompactionPayload {
 pub struct AgentCompactionWarningPayload {
     pub message: String,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "snake_case")]
+pub enum SubagentStatus {
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct SubagentStartPayload {
+    pub id: String,
+    pub agent_type: String,
+    pub task: String,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct SubagentEndPayload {
+    pub id: String,
+    pub status: SubagentStatus,
+    pub result: Option<String>,
+    pub error: Option<String>,
+}

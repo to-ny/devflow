@@ -29,6 +29,9 @@ export type { MemoryLoadedPayload } from "./MemoryLoadedPayload";
 export type { MemoryWarningPayload } from "./MemoryWarningPayload";
 export type { MessageRole } from "./MessageRole";
 export type { PlanReadyPayload } from "./PlanReadyPayload";
+export type { SubagentEndPayload } from "./SubagentEndPayload";
+export type { SubagentStartPayload } from "./SubagentStartPayload";
+export type { SubagentStatus } from "./SubagentStatus";
 export type { ToolEndPayload } from "./ToolEndPayload";
 export type { ToolStartPayload } from "./ToolStartPayload";
 

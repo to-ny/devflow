@@ -181,4 +181,5 @@ Tools (AgentOrchestrator):
 - search_web: `{ query, allowed_domains?, blocked_domains? }` — search web via external API
 - dispatch_agent: `{ task, agent_type?, tools? }` — spawn sub-agent for complex tasks
   - agent_type: explore, plan, summarize, bash-summarize, session-title, pr-review, pr-comments, security-review
+  - For parallel execution, make multiple dispatch_agent calls in a single response
 - submit_plan: `{ plan }` — submit plan for user approval

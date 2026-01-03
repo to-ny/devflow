@@ -14,6 +14,7 @@ use crate::git::wsl::WslPath;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+#[derive(Clone)]
 pub struct ShellExecutor {
     working_dir: PathBuf,
     default_timeout: Duration,

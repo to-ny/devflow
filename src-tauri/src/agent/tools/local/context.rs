@@ -9,6 +9,7 @@ use crate::agent::error::AgentError;
 
 pub const MAX_OUTPUT_SIZE: usize = 1024 * 1024; // 1MB
 
+#[derive(Clone)]
 pub struct ExecutionContext {
     pub working_dir: PathBuf,
     pub timeout: Duration,

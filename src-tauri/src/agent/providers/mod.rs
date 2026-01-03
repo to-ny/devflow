@@ -169,10 +169,103 @@ pub(crate) async fn execute_tool_calls(
     cancel_token: &CancellationToken,
 ) -> Result<Vec<ToolResult>, AgentError> {
     use super::tools::{ToolExecutor, ToolName};
+    use futures::future::join_all;
+
+    if cancel_token.is_cancelled() {
+        return Err(AgentError::Cancelled);
+    }
+
+    let (sequential_calls, parallel_calls): (Vec<_>, Vec<_>) = tool_calls
+        .into_iter()
+        .partition(|call| call.name == "submit_plan");
 
     let mut results = Vec::new();
 
-    for call in tool_calls {
+    if !parallel_calls.is_empty() {
+        let tool_count = parallel_calls.len();
+        let status_msg = if tool_count > 1 {
+            format!("{} tools", tool_count)
+        } else {
+            parallel_calls[0].name.clone()
+        };
+        emit_status(app_handle, AgentStatus::ToolRunning, Some(status_msg));
+
+        for call in &parallel_calls {
+            let _ = app_handle.emit(
+                "agent-tool-start",
+                ToolStartPayload {
+                    tool_use_id: call.id.clone(),
+                    tool_name: call.name.clone(),
+                    tool_input: call.input.clone(),
+                    block_index: call.block_index,
+                },
+            );
+        }
+
+        let parsed_calls: Result<Vec<_>, _> = parallel_calls
+            .iter()
+            .map(|call| {
+                ToolName::parse(&call.name)
+                    .map(|name| (call, name))
+                    .ok_or_else(|| AgentError::UnknownTool(call.name.clone()))
+            })
+            .collect();
+        let parsed_calls = parsed_calls?;
+
+        let futures: Vec<_> = parsed_calls
+            .into_iter()
+            .map(|(call, tool_name)| {
+                let executor = executor.clone();
+                let input = call.input.clone();
+                let id = call.id.clone();
+                let name = call.name.clone();
+                let block_index = call.block_index;
+                let cancel = cancel_token.clone();
+
+                async move {
+                    let (output, is_error) = tokio::select! {
+                        _ = cancel.cancelled() => {
+                            ("Cancelled by user".to_string(), true)
+                        }
+                        result = executor.execute(tool_name, input) => {
+                            match result {
+                                Ok(result) => (result, false),
+                                Err(e) => (e.to_string(), true),
+                            }
+                        }
+                    };
+                    (id, name, output, is_error, block_index)
+                }
+            })
+            .collect();
+
+        let parallel_results = join_all(futures).await;
+
+        for (id, name, output, is_error, block_index) in parallel_results {
+            let _ = app_handle.emit(
+                "agent-tool-end",
+                ToolEndPayload {
+                    tool_use_id: id.clone(),
+                    output: output.clone(),
+                    is_error,
+                    block_index,
+                },
+            );
+
+            results.push(ToolResult {
+                id,
+                name,
+                output,
+                is_error,
+            });
+        }
+    }
+
+    if cancel_token.is_cancelled() {
+        return Err(AgentError::Cancelled);
+    }
+
+    for call in sequential_calls {
         if cancel_token.is_cancelled() {
             return Err(AgentError::Cancelled);
         }
@@ -231,19 +324,18 @@ pub(crate) async fn execute_tool_calls(
             },
         );
 
+        // Handle submit_plan special case
         if tool_name == ToolName::SubmitPlan && !is_error {
             if let Some(plan) = session.get_plan().await {
                 let _ =
                     app_handle.emit("agent-plan-ready", PlanReadyPayload { plan: plan.clone() });
 
-                // Wait for user approval
                 emit_status(
                     app_handle,
                     AgentStatus::ToolWaiting,
                     Some("Awaiting plan approval".to_string()),
                 );
 
-                // Wait for approval/rejection from user
                 if let Some(approval) = session.wait_for_plan_approval().await {
                     use super::tools::PlanApproval;
 
@@ -271,7 +363,6 @@ pub(crate) async fn execute_tool_calls(
                         }
                     }
                 } else {
-                    // No pending plan (shouldn't happen)
                     results.push(ToolResult {
                         id: call.id,
                         name: call.name,

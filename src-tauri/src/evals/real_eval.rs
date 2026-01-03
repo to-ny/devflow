@@ -1,7 +1,7 @@
 //! Real eval runner for testing against actual LLM providers.
 //!
 //! These tests make real API calls and should be run manually with:
-//! ```
+//! ```text
 //! cargo test evals::real_eval --ignored -- --nocapture
 //! ```
 

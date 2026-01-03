@@ -1,6 +1,7 @@
 import { useNavigation } from "../context/NavigationContext";
 import { useSession } from "../context/SessionContext";
 import { BottomNav } from "./BottomNav";
+import { SubagentPanel } from "./SubagentPanel";
 import { Toast } from "./Toast";
 import { ChatPage, ChangesPage, SettingsPage } from "../pages";
 import "./MainLayout.css";
@@ -17,6 +18,7 @@ export function MainLayout() {
         {currentPage === "settings" && <SettingsPage />}
       </div>
       <BottomNav />
+      <SubagentPanel />
       {memoryWarning && (
         <Toast
           message={memoryWarning}

@@ -24,6 +24,8 @@ use crate::agent::usage::SessionUsageTracker;
 #[cfg(windows)]
 use crate::git::wsl::{is_wsl_path, parse_wsl_path};
 
+/// Clone is cheap: session/cancel_token/usage_tracker are Arc-wrapped, others are small structs.
+#[derive(Clone)]
 pub struct LocalExecutor {
     ctx: ExecutionContext,
     session: SessionState,
@@ -176,8 +178,29 @@ mod tests {
 
     fn create_executor() -> (LocalExecutor, TempDir) {
         let temp_dir = tempfile::tempdir().unwrap();
+        create_test_config(temp_dir.path());
         let executor = LocalExecutor::new(temp_dir.path().to_path_buf(), 30);
         (executor, temp_dir)
+    }
+
+    fn create_test_config(dir: &std::path::Path) {
+        let config_dir = dir.join(".devflow");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(
+            config_dir.join("config.toml"),
+            r#"
+[agent]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+max_tokens = 4096
+
+[execution]
+timeout_secs = 30
+max_tool_iterations = 50
+"#,
+        )
+        .unwrap();
     }
 
     #[tokio::test]

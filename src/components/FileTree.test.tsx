@@ -35,6 +35,11 @@ vi.mock("../context/CommentsContext", () => ({
   }),
 }));
 
+// Mock CommitModal to avoid ChatContext dependency
+vi.mock("./CommitModal", () => ({
+  CommitModal: () => null,
+}));
+
 describe("FileTree", () => {
   beforeEach(() => {
     vi.clearAllMocks();
