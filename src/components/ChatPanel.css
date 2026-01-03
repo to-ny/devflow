@@ -108,29 +108,137 @@
   word-break: break-word;
 }
 
-.chat-message-content p {
-  margin: 0 0 0.5em 0;
+/* Markdown content - shared styles for all markdown rendering */
+.markdown-content {
+  line-height: 1.6;
+  word-break: break-word;
 }
 
-.chat-message-content p:last-child {
+.markdown-content > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-content > *:last-child {
   margin-bottom: 0;
 }
 
-.chat-message-content ul,
-.chat-message-content ol {
+.markdown-content p {
+  margin: 0 0 0.75em 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin: 1em 0 0.5em 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown-content h1 {
+  font-size: 1.4em;
+}
+
+.markdown-content h2 {
+  font-size: 1.25em;
+}
+
+.markdown-content h3 {
+  font-size: 1.1em;
+}
+
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-size: 1em;
+}
+
+.markdown-content ul,
+.markdown-content ol {
   margin: 0.5em 0;
   padding-left: 1.5em;
 }
 
-.chat-message-content li {
+.markdown-content li {
   margin: 0.25em 0;
 }
 
-.chat-message-content pre {
-  margin: 0.5em 0;
+.markdown-content li > ul,
+.markdown-content li > ol {
+  margin: 0.25em 0;
+}
+
+.markdown-content blockquote {
+  margin: 0.75em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid var(--color-accent);
+  background-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-secondary);
+}
+
+.markdown-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content hr {
+  margin: 1em 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.markdown-content table {
+  width: 100%;
+  margin: 0.75em 0;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--color-bg-tertiary);
+  font-weight: 600;
+}
+
+.markdown-content a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+}
+
+.markdown-content pre {
+  margin: 0.75em 0;
   overflow-x: auto;
 }
 
+.markdown-content .inline-code {
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+}
+
+/* Inline code on light/accent backgrounds (user messages) */
+.chat-message-user .markdown-content .inline-code {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Legacy support for inline-code outside markdown-content */
 .inline-code {
   background-color: rgba(0, 0, 0, 0.3);
   padding: 0.15em 0.4em;

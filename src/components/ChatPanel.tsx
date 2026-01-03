@@ -17,35 +17,37 @@ interface MarkdownContentProps {
 
 function MarkdownContent({ content }: MarkdownContentProps) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        code({ className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          const isInline = !match;
-          return isInline ? (
-            <code className="inline-code" {...props}>
-              {children}
-            </code>
-          ) : (
-            <SyntaxHighlighter
-              style={oneDark}
-              language={match[1]}
-              PreTag="div"
-              customStyle={{
-                margin: 0,
-                borderRadius: "4px",
-                fontSize: "0.85em",
-              }}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
-          );
-        },
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+    <div className="markdown-content">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const isInline = !match;
+            return isInline ? (
+              <code className="inline-code" {...props}>
+                {children}
+              </code>
+            ) : (
+              <SyntaxHighlighter
+                style={oneDark}
+                language={match[1]}
+                PreTag="div"
+                customStyle={{
+                  margin: 0,
+                  borderRadius: "4px",
+                  fontSize: "0.85em",
+                }}
+              >
+                {String(children).replace(/\n$/, "")}
+              </SyntaxHighlighter>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -509,14 +511,16 @@ export function ChatPanel() {
                   )}
                 </>
               ) : (
-                // User messages: extract text from content blocks
-                msg.content_blocks
-                  .filter(
-                    (b): b is Extract<ChatContentBlock, { type: "text" }> =>
-                      b.type === "text",
-                  )
-                  .map((b) => b.text)
-                  .join("")
+                // User messages: render as markdown too
+                <MarkdownContent
+                  content={msg.content_blocks
+                    .filter(
+                      (b): b is Extract<ChatContentBlock, { type: "text" }> =>
+                        b.type === "text",
+                    )
+                    .map((b) => b.text)
+                    .join("")}
+                />
               )}
             </div>
           </div>
