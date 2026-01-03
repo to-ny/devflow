@@ -11,6 +11,7 @@ import {
   PromptsSection,
   AgentPromptsSection,
   ToolsSection,
+  TemplatesSection,
   type SidebarItem,
 } from "../components/settings";
 import "./SettingsPage.css";
@@ -28,6 +29,7 @@ const SECTIONS: SidebarSection[] = [
   { id: "prompts", label: "Prompts" },
   { id: "agent-prompts", label: "Agent Prompts" },
   { id: "tools", label: "Tool Descriptions" },
+  { id: "templates", label: "Templates" },
 ];
 
 export function SettingsPage() {
@@ -157,6 +159,9 @@ export function SettingsPage() {
             onResetToolDescription={form.resetToolDescription}
           />
         );
+
+      case "templates":
+        return <TemplatesSection />;
 
       default:
         return null;

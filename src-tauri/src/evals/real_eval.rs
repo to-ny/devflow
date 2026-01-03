@@ -207,6 +207,7 @@ pub fn print_eval_report(run_data: &AgentRunData, eval_result: &super::types::Ev
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     /// Run the senior_architect_review eval against real LLM API.
     ///

@@ -9,3 +9,4 @@ export { NotificationsSection } from "./NotificationsSection";
 export { PromptsSection } from "./PromptsSection";
 export { AgentPromptsSection } from "./AgentPromptsSection";
 export { ToolsSection } from "./ToolsSection";
+export { TemplatesSection } from "./TemplatesSection";

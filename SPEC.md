@@ -59,7 +59,6 @@ Top menu bar includes View → Chat, Changes, Settings.
 - Line numbers (old and new)
 - Click line or drag range → opens CommentEditor
 - Visual indicators for commented lines
-- Auto-refresh on file system changes
 - "Send Comments" button → renders template, sends to agent, clears comments, navigates to Chat
 - "Commit" button → opens CommitModal, navigates to Chat after send
 
@@ -128,8 +127,8 @@ All agent fields are required (no defaults).
 Location: `~/.config/devflow/templates/`
 
 Variables available:
-- review-comments.txt: `{{comments}}` (array: file, lines.start, lines.end, language, selected_code, text), `{{global_comment}}`
-- commit.txt: `{{instructions}}`, `{{files}}` (array of paths)
+- review-comments.md: `{{comments}}` (array: file, lines.start, lines.end, selected_code, text), `{{global_comment}}`
+- commit.md: `{{instructions}}`, `{{files}}` (array of paths)
 
 ## MVP Scope
 

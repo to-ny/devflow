@@ -47,3 +47,10 @@ export type { ProjectConfig } from "./ProjectConfig";
 export type { PromptsConfig } from "./PromptsConfig";
 export type { ProviderInfo } from "./ProviderInfo";
 export type { SearchConfig } from "./SearchConfig";
+
+// Template types
+export type { CommitContext } from "./CommitContext";
+export type { LineRange } from "./LineRange";
+export type { ReviewComment } from "./ReviewComment";
+export type { ReviewCommentsContext } from "./ReviewCommentsContext";
+export type { TemplateContent } from "./TemplateContent";

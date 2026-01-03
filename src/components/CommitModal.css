@@ -1,0 +1,138 @@
+.commit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.commit-modal {
+  background: var(--color-bg-secondary, #242424);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  width: 480px;
+  max-width: 90vw;
+}
+
+.commit-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border, #333);
+}
+
+.commit-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary, #fff);
+}
+
+.commit-modal-close {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary, #ccc);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.commit-modal-close:hover {
+  color: var(--color-text-primary, #fff);
+}
+
+.commit-modal-body {
+  padding: 20px;
+}
+
+.commit-modal-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted, #888);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.commit-modal-input {
+  width: 100%;
+  background: var(--color-bg-primary, #1a1a1a);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  color: var(--color-text-primary, #fff);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.commit-modal-input:focus {
+  outline: none;
+  border-color: var(--color-accent, #3b82f6);
+}
+
+.commit-modal-input::placeholder {
+  color: var(--color-text-muted, #888);
+}
+
+.commit-modal-error {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
+  border-radius: 4px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.commit-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border, #333);
+}
+
+.commit-modal-cancel,
+.commit-modal-submit {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.commit-modal-cancel {
+  background: transparent;
+  color: var(--color-text-secondary, #ccc);
+  border: 1px solid var(--color-border, #333);
+}
+
+.commit-modal-cancel:hover {
+  background: var(--color-bg-tertiary, #2a2a2a);
+}
+
+.commit-modal-submit {
+  background: var(--color-accent, #3b82f6);
+  color: white;
+}
+
+.commit-modal-submit:hover:not(:disabled) {
+  background: var(--color-accent-hover, #2563eb);
+}
+
+.commit-modal-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

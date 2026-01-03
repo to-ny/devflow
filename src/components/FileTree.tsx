@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import { useComments } from "../context/CommentsContext";
+import { CommitModal } from "./CommitModal";
 import type { FileStatus, ChangedFile } from "../types/git";
 import { getDisplayStatus } from "../types/git";
 import "./FileTree.css";
@@ -210,6 +211,7 @@ export function FileTree() {
     new Set(),
   );
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
   const treeRef = useRef<HTMLUListElement>(null);
 
   const tree = useMemo(() => buildTree(changedFiles), [changedFiles]);
@@ -371,6 +373,19 @@ export function FileTree() {
           </ul>
         )}
       </div>
+      <div className="file-tree-footer">
+        <button
+          className="commit-btn"
+          onClick={() => setIsCommitModalOpen(true)}
+          disabled={changedFiles.length === 0}
+        >
+          Commit
+        </button>
+      </div>
+      <CommitModal
+        isOpen={isCommitModalOpen}
+        onClose={() => setIsCommitModalOpen(false)}
+      />
     </div>
   );
 }

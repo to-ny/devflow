@@ -3,6 +3,7 @@ pub mod config;
 pub mod evals;
 pub mod git;
 mod menu;
+pub mod template;
 
 use std::sync::{Arc, RwLock};
 
@@ -21,6 +22,10 @@ use config::commands::{
 };
 use git::commands::{
     git_get_changed_files, git_get_file_diff_with_status, git_is_repository, git_stage_all,
+};
+use template::commands::{
+    template_get_defaults, template_load, template_render_commit, template_render_review_comments,
+    template_save,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -87,6 +92,11 @@ pub fn run() {
             config_get_default_extraction_prompt,
             config_load_agents_md,
             config_save_agents_md,
+            template_load,
+            template_save,
+            template_render_review_comments,
+            template_render_commit,
+            template_get_defaults,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

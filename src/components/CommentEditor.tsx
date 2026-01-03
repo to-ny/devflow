@@ -1,9 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   useComments,
   LineRange,
   LineComment,
 } from "../context/CommentsContext";
+import { useChat } from "../context/ChatContext";
+import { useNavigation } from "../context/NavigationContext";
+import type { ReviewCommentsContext } from "../types/generated";
 import "./CommentEditor.css";
 
 interface CommentEditorProps {
@@ -24,9 +28,18 @@ export function CommentEditor({
   existingComment,
 }: CommentEditorProps) {
   const [text, setText] = useState(existingComment?.text ?? "");
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { addLineComment, updateLineCommentWithRange, removeLineComment } =
-    useComments();
+  const {
+    addLineComment,
+    updateLineCommentWithRange,
+    removeLineComment,
+    lineComments,
+    globalComment,
+    clearAllComments,
+  } = useComments();
+  const { sendMessage } = useChat();
+  const { navigate } = useNavigation();
   const isEditing = !!existingComment;
   // Check if line range changed (overlapping comment with different selection)
   const rangeChanged =
@@ -61,6 +74,75 @@ export function CommentEditor({
       onClose();
     }
   };
+
+  const handleSendAll = useCallback(async () => {
+    if (!text.trim()) return;
+
+    setIsSending(true);
+    try {
+      const currentComment = {
+        file,
+        lines: { start: lines.start, end: lines.end },
+        selected_code: selectedCode,
+        text: text.trim(),
+      };
+
+      let allComments;
+      if (isEditing && existingComment) {
+        allComments = lineComments.map((c) =>
+          c.id === existingComment.id
+            ? currentComment
+            : {
+                file: c.file,
+                lines: { start: c.lines.start, end: c.lines.end },
+                selected_code: c.selectedCode,
+                text: c.text,
+              },
+        );
+      } else {
+        allComments = [
+          ...lineComments.map((c) => ({
+            file: c.file,
+            lines: { start: c.lines.start, end: c.lines.end },
+            selected_code: c.selectedCode,
+            text: c.text,
+          })),
+          currentComment,
+        ];
+      }
+
+      const context: ReviewCommentsContext = {
+        global_comment: globalComment,
+        comments: allComments,
+      };
+
+      const rendered = await invoke<string>("template_render_review_comments", {
+        context,
+      });
+
+      clearAllComments();
+      onClose();
+      navigate("chat");
+      sendMessage(rendered);
+    } catch (error) {
+      console.error("Failed to send comments:", error);
+    } finally {
+      setIsSending(false);
+    }
+  }, [
+    text,
+    file,
+    lines,
+    selectedCode,
+    isEditing,
+    existingComment,
+    lineComments,
+    globalComment,
+    sendMessage,
+    clearAllComments,
+    onClose,
+    navigate,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -114,9 +196,17 @@ export function CommentEditor({
         <button
           className="comment-editor-submit"
           onClick={handleSubmit}
-          disabled={!text.trim()}
+          disabled={!text.trim() || isSending}
         >
           {buttonLabel}
+        </button>
+        <button
+          className="comment-editor-send"
+          onClick={handleSendAll}
+          disabled={!text.trim() || isSending}
+          title="Add this comment and send all comments to the agent"
+        >
+          {isSending ? "Sending..." : "Send All"}
         </button>
       </div>
     </div>
