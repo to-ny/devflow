@@ -1,0 +1,37 @@
+name: Release Windows Executable
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: rust-lang/rustup-github-action@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+
+      - name: Install Tauri dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        run: cargo tauri build --target x86_64-pc-windows-msvc
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-executable
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          asset_name: devflow-${{ github.ref_name }}-windows.msi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
