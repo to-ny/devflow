@@ -1,5 +1,7 @@
 # Devflow
 
+> **Note:** This project is no longer maintained. The cost of LLM API consumption made it impractical compared to using provider tools directly.
+
 Desktop app for AI-assisted iterative code development with integrated diff review.
 
 ## Features
